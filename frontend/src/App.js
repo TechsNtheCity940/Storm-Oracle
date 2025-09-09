@@ -260,10 +260,14 @@ function App() {
                 <Input
                   type="text"
                   value={registerForm.full_name}
-                  onChange={(e) => setRegisterForm({...registerForm, full_name: e.target.value})}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setRegisterForm(prev => ({...prev, full_name: value}));
+                  }}
                   className="bg-slate-700 border-slate-600 text-white"
                   placeholder="Enter your full name"
                   required
+                  autoComplete="name"
                 />
               </div>
             )}
