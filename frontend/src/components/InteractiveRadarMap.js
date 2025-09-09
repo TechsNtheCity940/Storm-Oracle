@@ -318,8 +318,9 @@ const InteractiveRadarMap = ({
   const [frameCount, setFrameCount] = useState(100);
   const [playbackSpeed, setPlaybackSpeed] = useState(500); // ms per frame
   const [radarOpacity, setRadarOpacity] = useState(0.7);
-  const [mapCenter, setMapCenter] = useState([39.8283, -98.5795]); // Center of USA
-  const [mapZoom, setMapZoom] = useState(5);
+  // Map center and zoom - default to national view
+  const [mapCenter, setMapCenter] = useState([39.0, -98.0]); // Center of US
+  const [mapZoom, setMapZoom] = useState(4); // Zoom level to show entire US
   const [isLoading, setIsLoading] = useState(false);
   const [controlsCollapsed, setControlsCollapsed] = useState(false);
   const [dataType, setDataType] = useState('base_reflectivity');
