@@ -96,6 +96,38 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
     setLoading(false);
   };
 
+  const handleStartTrial = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('storm_oracle_token');
+      if (!token) {
+        alert('Please login to start trial');
+        return;
+      }
+
+      const response = await axios.post(
+        `${API}/api/auth/start-trial`,
+        {},
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+
+      alert(`🎉 Free trial activated! ${response.data.message}`);
+      
+      // Refresh trial status and user info
+      await loadTrialStatus();
+      if (onSubscriptionUpdate) {
+        onSubscriptionUpdate();
+      }
+    } catch (error) {
+      console.error('Trial activation error:', error);
+      const message = error.response?.data?.detail || 'Failed to start trial';
+      alert(`Trial activation failed: ${message}`);
+    }
+    setLoading(false);
+  };
+
   const planFeatures = {
     free: [
       '🎯 Live 2D radar data access',
