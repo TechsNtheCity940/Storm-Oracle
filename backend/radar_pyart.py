@@ -64,7 +64,7 @@ class RadarProcessor:
             weather_intensity = np.maximum(weather_intensity, 0)
             
             # Apply radar color scheme
-            radar_cmap = plt.cm.get_cmap('pyart_NWSRef')
+            radar_cmap = plt.cm.get_cmap('NWSRef')  # Fixed: Use 'NWSRef' instead of 'pyart_NWSRef'
             
             # Plot radar data
             if np.max(weather_intensity) > 0:
