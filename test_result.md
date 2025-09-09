@@ -180,7 +180,6 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix radar visual data display - no radar overlays showing"
     - "Move map zoom controls to top-right of map"
     - "Move fullscreen button to bottom-left of map"
     - "Fix radar visual data overlay display"
