@@ -274,13 +274,19 @@ function App() {
               <Input
                 type="email"
                 value={showLogin ? loginForm.email : registerForm.email}
-                onChange={(e) => showLogin ? 
-                  setLoginForm({...loginForm, email: e.target.value}) :
-                  setRegisterForm({...registerForm, email: e.target.value})
-                }
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (showLogin) {
+                    setLoginForm(prev => ({...prev, email: value}));
+                  } else {
+                    setRegisterForm(prev => ({...prev, email: value}));
+                  }
+                }}
                 className="bg-slate-700 border-slate-600 text-white"
                 placeholder="Enter your email"
                 required
+                autoComplete="email"
+                inputMode="email"
               />
             </div>
             <div>
@@ -290,13 +296,18 @@ function App() {
               <Input
                 type="password"
                 value={showLogin ? loginForm.password : registerForm.password}
-                onChange={(e) => showLogin ? 
-                  setLoginForm({...loginForm, password: e.target.value}) :
-                  setRegisterForm({...registerForm, password: e.target.value})
-                }
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (showLogin) {
+                    setLoginForm(prev => ({...prev, password: value}));
+                  } else {
+                    setRegisterForm(prev => ({...prev, password: value}));
+                  }
+                }}
                 className="bg-slate-700 border-slate-600 text-white"
                 placeholder="Enter your password"
                 required
+                autoComplete={showLogin ? "current-password" : "new-password"}
               />
             </div>
             <Button 
