@@ -306,12 +306,15 @@ async def get_radar_image(station_id: str, data_type: str = "reflectivity"):
         
         # Try different working radar sources
         radar_sources = [
-            # NOAA Radar (most reliable)
-            f"https://radar.weather.gov/ridge/lite/{station_id.lower()}_0.gif",
-            # Alternative NOAA source
-            f"https://radar.weather.gov/ridge/RadarImg/N0R/{station_id}_0.gif",
-            # Weather.gov composite
-            f"https://radar.weather.gov/ridge/standard/{station_id.lower()}_0.gif"
+            # Current NOAA radar image services (2025)
+            f"https://radar.weather.gov/ridge/lite/{station_id.lower()}_0.gif?{int(time.time())}",
+            f"https://radar.weather.gov/ridge/standard/{station_id.lower()}_0.gif?{int(time.time())}",
+            # National Mosaic for better coverage
+            f"https://radar.weather.gov/ridge/RadarImg/N0R/{station_id}_0.gif?{int(time.time())}",
+            # Velocity data
+            f"https://radar.weather.gov/ridge/lite/{station_id.lower()}_1.gif?{int(time.time())}",
+            # Try older format paths
+            f"https://radar.weather.gov/ridge/Conus/RadarImg/latest_{station_id.lower()}_0.gif"
         ]
         
         # Try each source until one works
