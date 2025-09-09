@@ -4,7 +4,6 @@ import './TornadoMarker.css';
 const TornadoMarker = ({ 
   intensity = 1, 
   isConfirmed = false, 
-  position = { lat: 0, lng: 0 },
   onClick,
   className = ''
 }) => {
