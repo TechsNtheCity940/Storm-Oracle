@@ -105,6 +105,36 @@ function App() {
     setAnalyzing(false);
   };
 
+  const runAdvancedMLAnalysis = async () => {
+    if (!selectedStation) {
+      toast.error("Please select a radar station first");
+      return;
+    }
+
+    setAnalyzing(true);
+    try {
+      toast.info("🚀 Running advanced ML tornado prediction...");
+      
+      const response = await axios.post(`${API}/ml-tornado-analysis?station_id=${selectedStation.station_id}&data_type=${radarType}`);
+      
+      const mlPrediction = response.data["🌪️ ADVANCED_ML_PREDICTION"];
+      const aiAnalysis = response.data["🤖 AI_CONTEXTUAL_ANALYSIS"];
+      
+      toast.success(`🌪️ ML Prediction: ${mlPrediction.tornado_probability} tornado risk | Alert: ${mlPrediction.alert_level}`);
+      
+      // Refresh alerts
+      await loadTornadoAlerts();
+      
+      // Show detailed results
+      console.log("🧠 Advanced ML Analysis:", response.data);
+      
+    } catch (error) {
+      console.error("Error in advanced ML analysis:", error);
+      toast.error("Advanced ML analysis failed");
+    }
+    setAnalyzing(false);
+  };
+
   const handleChatSubmit = async () => {
     if (!chatMessage.trim()) return;
     
