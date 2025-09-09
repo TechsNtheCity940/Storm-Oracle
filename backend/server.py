@@ -348,6 +348,78 @@ async def get_payment_history(current_user: dict = Depends(get_current_user)):
         logger.error(f"Error fetching payment history: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch payment history")
 
+@api_router.get("/subscription/features")
+async def get_subscription_features(current_user: dict = Depends(get_current_user)):
+    """Get current user's subscription features and limits"""
+    try:
+        from auth import get_subscription_limits, is_trial_active, get_trial_days_remaining
+        
+        user = await users_collection.find_one({"id": current_user["user_id"]})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        subscription_type = user.get("subscription_type", UserType.FREE)
+        limits = get_subscription_limits(subscription_type)
+        
+        # Add trial information if applicable
+        trial_info = {}
+        if subscription_type == UserType.TRIAL:
+            trial_info = {
+                "is_trial": True,
+                "trial_active": is_trial_active(user),
+                "days_remaining": get_trial_days_remaining(user),
+                "trial_end": user.get("trial_end")
+            }
+        else:
+            trial_info = {
+                "is_trial": False,
+                "can_start_trial": not user.get("trial_activated", False) and subscription_type == UserType.FREE
+            }
+        
+        return {
+            "subscription_type": subscription_type,
+            "limits": limits,
+            "trial_info": trial_info,
+            "pricing_tiers": {
+                "free": {
+                    "name": "Free Tier",
+                    "price": 0,
+                    "features": [
+                        "Live 2D radar data",
+                        "Manual/nearest radar selection", 
+                        "All map controls",
+                        "Max 100 animation frames",
+                        "Max 5x speed",
+                        "Location-based AI predictions",
+                        "Visual prediction data access"
+                    ]
+                },
+                "premium": {
+                    "name": "Premium",
+                    "price": 15.00,
+                    "billing": "monthly",
+                    "trial_days": 7,
+                    "features": [
+                        "Everything in Free",
+                        "Unlimited frames & speed",
+                        "2D & 3D radar data",
+                        "Advanced ML predictions",
+                        "Real-time storm tracking",
+                        "Enhanced AI alerts",
+                        "AI chatbot access",
+                        "Priority support",
+                        "Data export"
+                    ]
+                }
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching subscription features: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch subscription features")
+
 # Authentication endpoints
 @api_router.post("/auth/register", response_model=dict)
 async def register_user(user_data: UserCreate):
