@@ -52,6 +52,20 @@ function App() {
     };
   }, []);
 
+  const loadNationalRadar = async () => {
+    if (selectedStation) return; // Don't override if user has selected a station
+    
+    setLoading(true);
+    try {
+      const radarResponse = await axios.get(`${API}/radar-data/NATIONAL?data_type=${radarType}`);
+      setRadarData(radarResponse.data);
+      console.log('National radar data loaded:', radarResponse.data);
+    } catch (error) {
+      console.error("Error loading national radar:", error);
+    }
+    setLoading(false);
+  };
+
   const loadActiveStorms = async () => {
     try {
       const response = await axios.get(`${API}/active-storms`);
