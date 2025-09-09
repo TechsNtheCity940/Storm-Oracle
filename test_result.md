@@ -156,11 +156,14 @@ backend:
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Added /subscription/features endpoint to return user's current subscription type, limits, trial info, and pricing tiers with feature comparisons."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: GET /subscription/features endpoint working perfectly. Returns complete response structure with subscription_type, limits, trial_info, and pricing_tiers. Premium pricing correctly shows $15.00 monthly. Requires authentication (returns 403 without token). All response fields present and accurate."
 
 frontend:
   - task: "Move map zoom controls to top-right of map"
