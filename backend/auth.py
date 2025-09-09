@@ -242,15 +242,53 @@ def check_subscription_limits(user_type: str, feature: str) -> bool:
     if user_type == UserType.PREMIUM:
         return True
     
-    # Free user limitations
+    # Enhanced free user features
     free_features = [
-        "basic_radar",
-        "national_view", 
-        "basic_alerts",
-        "station_selection"
+        "live_radar_data",      # Live 2D radar data
+        "manual_radar_selection", # Manual radar station selection
+        "nearest_radar_location", # Auto-select nearest radar
+        "map_controls",         # All map controls (zoom, pan, etc.)
+        "radar_animation",      # Radar looping animation
+        "location_based_alerts", # AI alerts for user's location
+        "visual_prediction_data", # See AI model predictions on radar
+        "basic_storm_tracking",  # Basic storm cell information
+        "100_frame_limit",      # Maximum 100 animation frames
+        "5x_speed_limit",       # Maximum 5x animation speed
     ]
     
     return feature in free_features
+
+def get_subscription_limits(user_type: str) -> dict:
+    """Get detailed subscription limits for user type"""
+    if user_type == UserType.ADMIN:
+        return {
+            "max_frames": -1,  # Unlimited
+            "max_speed": -1,   # Unlimited
+            "api_calls_per_month": -1,  # Unlimited
+            "radar_stations": -1,  # All stations
+            "historical_data_days": -1,  # Unlimited
+            "custom_alert_zones": -1,  # Unlimited
+        }
+    
+    if user_type == UserType.PREMIUM:
+        return {
+            "max_frames": 500,  # 500 frames
+            "max_speed": 10.0,  # 10x speed
+            "api_calls_per_month": 5000,  # 5000 API calls
+            "radar_stations": -1,  # All stations
+            "historical_data_days": 365,  # 1 year
+            "custom_alert_zones": 10,  # 10 custom zones
+        }
+    
+    # Free tier limits
+    return {
+        "max_frames": 100,  # 100 frames maximum
+        "max_speed": 5.0,   # 5x speed maximum
+        "api_calls_per_month": 100,  # 100 API calls
+        "radar_stations": -1,  # All stations (but limited features)
+        "historical_data_days": 0,  # No historical data
+        "custom_alert_zones": 1,  # 1 location-based zone
+    }
 
 # Admin access secret method
 def check_admin_secret(email: str, secret_code: str) -> bool:
