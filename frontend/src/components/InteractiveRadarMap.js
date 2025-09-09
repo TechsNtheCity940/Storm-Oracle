@@ -810,13 +810,21 @@ const InteractiveRadarMap = ({
         </div>
       </div>
 
-      {/* Interactive Map */}
+      {/* Interactive Map with Fullscreen Support */}
       <MapContainer
         center={mapCenter}
         zoom={mapZoom}
-        style={{ height: '100%', width: '100%' }}
+        style={{ 
+          height: isFullscreen ? '100vh' : '100%', 
+          width: '100%',
+          position: isFullscreen ? 'fixed' : 'relative',
+          top: isFullscreen ? 0 : 'auto',
+          left: isFullscreen ? 0 : 'auto',
+          zIndex: isFullscreen ? 9998 : 'auto'
+        }}
         ref={mapRef}
         className="radar-map"
+        zoomControl={!isFullscreen}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
