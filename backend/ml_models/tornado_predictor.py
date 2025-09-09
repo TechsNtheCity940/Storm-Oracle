@@ -123,21 +123,35 @@ class AtmosphericConditionEncoder(nn.Module):
     def forward(self, atmospheric_data):
         """Encode atmospheric conditions"""
         
-        # Extract individual parameters
-        cape = atmospheric_data.get('cape', torch.zeros(1))
-        shear = atmospheric_data.get('wind_shear', torch.zeros(4))
-        helicity = atmospheric_data.get('helicity', torch.zeros(2))
-        temperature = atmospheric_data.get('temperature', torch.zeros(3))
-        dewpoint = atmospheric_data.get('dewpoint', torch.zeros(2))
-        pressure = atmospheric_data.get('pressure', torch.zeros(1))
+        # Extract individual parameters with proper batch dimension handling
+        cape = atmospheric_data.get('cape', torch.zeros(1, 1))
+        shear = atmospheric_data.get('wind_shear', torch.zeros(1, 4))
+        helicity = atmospheric_data.get('helicity', torch.zeros(1, 2))
+        temperature = atmospheric_data.get('temperature', torch.zeros(1, 3))
+        dewpoint = atmospheric_data.get('dewpoint', torch.zeros(1, 2))
+        pressure = atmospheric_data.get('pressure', torch.zeros(1, 1))
+        
+        # Ensure all tensors have batch dimension
+        if len(cape.shape) == 1:
+            cape = cape.unsqueeze(0)
+        if len(shear.shape) == 1:
+            shear = shear.unsqueeze(0)
+        if len(helicity.shape) == 1:
+            helicity = helicity.unsqueeze(0)
+        if len(temperature.shape) == 1:
+            temperature = temperature.unsqueeze(0)
+        if len(dewpoint.shape) == 1:
+            dewpoint = dewpoint.unsqueeze(0)
+        if len(pressure.shape) == 1:
+            pressure = pressure.unsqueeze(0)
         
         # Encode each parameter type
-        cape_features = F.relu(self.cape_encoder(cape.unsqueeze(-1)))
+        cape_features = F.relu(self.cape_encoder(cape))
         shear_features = F.relu(self.shear_encoder(shear))
         helicity_features = F.relu(self.helicity_encoder(helicity))
         temp_features = F.relu(self.temperature_encoder(temperature))
         dewpoint_features = F.relu(self.dewpoint_encoder(dewpoint))
-        pressure_features = F.relu(self.pressure_encoder(pressure.unsqueeze(-1)))
+        pressure_features = F.relu(self.pressure_encoder(pressure))
         
         # Combine all atmospheric features
         combined = torch.cat([
@@ -151,10 +165,10 @@ class AtmosphericConditionEncoder(nn.Module):
         
         return {
             'atmospheric_features': fused,
-            'cape_score': cape,
-            'shear_magnitude': torch.norm(shear),
-            'helicity_score': torch.norm(helicity),
-            'instability_index': cape * torch.norm(shear)
+            'cape_score': cape.squeeze(),
+            'shear_magnitude': torch.norm(shear, dim=-1),
+            'helicity_score': torch.norm(helicity, dim=-1),
+            'instability_index': cape.squeeze() * torch.norm(shear, dim=-1)
         }
 
 class TornadoSuperPredictor(nn.Module):
