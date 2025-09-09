@@ -502,19 +502,21 @@ const InteractiveRadarMap = ({
     };
   }, [isPlaying, radarFrames.length, playbackSpeed]);
 
-  // Load national radar on mount
+  // Load national radar frames on startup and when data type changes
   useEffect(() => {
-    loadRadarFrames();
-  }, [loadRadarFrames]);
-
-  // Jump to selected station
-  useEffect(() => {
-    if (selectedStation && mapRef.current) {
-      const map = mapRef.current;
-      map.setView([selectedStation.latitude, selectedStation.longitude], 8);
-      loadRadarFrames(selectedStation.station_id);
+    if (!selectedStation) {
+      console.log('🌍 Loading national radar frames by default');
+      loadRadarFrames(null, frameCount);
     }
-  }, [selectedStation, loadRadarFrames]);
+  }, [loadRadarFrames, frameCount, selectedStation]);
+
+  // Load station-specific radar when station is selected
+  useEffect(() => {
+    if (selectedStation) {
+      console.log('📡 Station selected, loading station radar:', selectedStation.station_id);
+      loadRadarFrames(selectedStation.station_id, frameCount);
+    }
+  }, [selectedStation, loadRadarFrames, frameCount]);
 
   const togglePlayback = () => {
     setIsPlaying(!isPlaying);
