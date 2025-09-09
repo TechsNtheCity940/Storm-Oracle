@@ -534,9 +534,15 @@ async def reset_password(reset_data: PasswordResetConfirm):
         raise HTTPException(status_code=500, detail="Password reset failed")
 
 @api_router.post("/auth/admin-access")
-async def grant_admin_access(email: EmailStr, secret_code: str):
+async def grant_admin_access(admin_data: dict):
     """Secret method to grant admin access"""
     try:
+        email = admin_data.get("email")
+        secret_code = admin_data.get("secret_code")
+        
+        if not email or not secret_code:
+            raise HTTPException(status_code=400, detail="Email and secret code required")
+        
         if not check_admin_secret(email, secret_code):
             raise HTTPException(status_code=403, detail="Invalid admin credentials")
         
