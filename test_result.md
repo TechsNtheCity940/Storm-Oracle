@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Move the map zoom controls to the top right of the map, the button to make the map full screen should be on the bottom left of the map when the map is full screen the button to back out of full screen should be bottom left of the screen. I still see absolutely no visual radar data, I see the radars and can select them, but nothing appears no matter what type of data or radar i select. No specific requirements for the scroll option on the control menu, the collapsible menu should function exactly the same wether full screen or not full screen, leave the controls menu at top left of map, I will do manual visual testing after the fixes"
+user_problem_statement: "Update Storm Oracle pricing model and subscription features. Premium should be $15/month with all bells and whistles including 2D and 3D radar data and advanced controls. Implement enhanced free tier with: live 2D radar data, manual/nearest radar selection, all map controls (max 100 frames, auto-looping at normal speed, max 5x), and location-based AI predictions with visual data access. Add one-week free trial for premium features."
 
 backend:
   - task: "Fix radar visual data display - no radar overlays showing"
