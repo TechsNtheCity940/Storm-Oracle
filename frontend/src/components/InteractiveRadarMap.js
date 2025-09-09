@@ -574,7 +574,7 @@ const InteractiveRadarMap = ({
         </CardHeader>
         
         {!controlsCollapsed && (
-          <CardContent className="space-y-4 overflow-y-auto overflow-x-hidden max-h-full pr-2">
+          <CardContent className="space-y-4 overflow-y-auto overflow-x-hidden pr-2" style={{ maxHeight: isFullscreen ? 'calc(100vh - 8rem)' : 'calc(100vh - 12rem)' }}>
             <div className="space-y-4">
               {/* Data Type Selection */}
               <div className="space-y-2">
