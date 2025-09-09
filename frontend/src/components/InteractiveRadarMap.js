@@ -599,7 +599,7 @@ const InteractiveRadarMap = ({
                   <div className="text-white text-sm font-medium">{selectedStation.name}</div>
                   <div className="text-slate-300 text-xs">{selectedStation.station_id}</div>
                   <div className="text-slate-400 text-xs">
-                    {selectedStation.latitude.toFixed(4)}°, {selectedStation.longitude.toFixed(4)}°
+                    {selectedStation.latitude?.toFixed(4) || 'N/A'}°, {selectedStation.longitude?.toFixed(4) || 'N/A'}°
                   </div>
                 </div>
               )}
