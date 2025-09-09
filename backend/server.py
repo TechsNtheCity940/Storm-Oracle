@@ -252,7 +252,16 @@ async def init_radar_stations():
 
 @app.on_event("startup")
 async def startup_event():
+    global storm_monitor
     await init_radar_stations()
+    
+    # Initialize automated storm monitoring
+    storm_monitor = AutomatedStormMonitor(db, claude_chat)
+    
+    # Start automated storm monitoring in background
+    asyncio.create_task(storm_monitor.start_monitoring())
+    
+    logger.info("🌪️ Storm Oracle startup complete - Automated monitoring active")
 
 # API Routes
 @api_router.get("/")
