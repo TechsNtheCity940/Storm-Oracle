@@ -28,3 +28,9 @@ torch>=2.0.0
 torchvision>=0.15.0
 numpy>=1.24.0
 pillow>=10.0.0
+httpx
+arm-pyart
+matplotlib
+xarray
+netCDF4
+cartopy
