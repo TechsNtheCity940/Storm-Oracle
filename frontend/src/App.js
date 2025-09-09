@@ -49,6 +49,29 @@ function App() {
     };
   }, []);
 
+  const loadActiveStorms = async () => {
+    try {
+      const response = await axios.get(`${API}/active-storms`);
+      setStormCells(response.data.active_storms || []);
+    } catch (error) {
+      console.error("Error loading active storms:", error);
+    }
+  };
+
+  const loadMonitoringStatus = async () => {
+    try {
+      const response = await axios.get(`${API}/monitoring-status`);
+      setMonitoringStatus(response.data);
+    } catch (error) {
+      console.error("Error loading monitoring status:", error);
+    }
+  };
+
+  const handleStormClick = (storm) => {
+    console.log("Storm clicked:", storm);
+    toast.info(`🌪️ ${storm.stationName}: ${storm.tornadoProbability}% tornado risk`);
+  };
+
   const loadRadarStations = async () => {
     try {
       const response = await axios.get(`${API}/radar-stations`);
