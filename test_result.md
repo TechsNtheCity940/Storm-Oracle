@@ -222,15 +222,14 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Fix radar visual data overlay display"
+    - "Update subscription pricing to $15/month for premium"
+    - "Implement enhanced free tier features"
+    - "Implement one-week free trial system"
+    - "Add subscription features endpoint"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Identified critical radar visualization bug - user reports no visual radar data despite working API. Starting fixes for UI positioning and radar overlay display issues."
-  - agent: "testing"
-    message: "CRITICAL RADAR API ISSUE FOUND: Comprehensive testing of radar data endpoints reveals 100% failure rate for radar image URLs. All generated URLs return HTTP 404 errors. Root cause: Backend uses invalid timestamps and outdated API formats. NWS RIDGE URLs deprecated, RainViewer URLs need valid timestamps from their API. Backend must be updated to use working radar APIs. This is the definitive cause of the 'no visual radar data' issue reported by user."
-  - agent: "testing"
-    message: "✅ RADAR API VERIFICATION COMPLETE: Quick verification test confirms the radar data API is now fully functional. KEAX endpoint returns working NOAA ImageServer URLs that provide actual PNG image data. Coordinates are properly formatted (38.8103, -94.2645), API source correctly shows 'NOAA ImageServer', and comprehensive testing of 5 stations shows 100% success rate. The backend fixes have resolved the radar URL accessibility issues. Frontend should now be able to display radar overlays successfully."
+    message: "Implementing updated pricing model and subscription features. Updated premium pricing to $15/month, enhanced free tier with live 2D radar and all map controls, implemented 7-day free trial system with new endpoints for managing trial status and activation."
