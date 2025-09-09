@@ -286,26 +286,47 @@ def get_subscription_limits(user_type: str) -> dict:
             "radar_stations": -1,  # All stations
             "historical_data_days": -1,  # Unlimited
             "custom_alert_zones": -1,  # Unlimited
+            "radar_data_types": ["2d", "3d", "velocity", "reflectivity", "storm_relative"],
+            "advanced_ml_predictions": True,
+            "priority_support": True,
         }
     
     if user_type == UserType.PREMIUM:
         return {
-            "max_frames": 500,  # 500 frames
-            "max_speed": 10.0,  # 10x speed
-            "api_calls_per_month": 5000,  # 5000 API calls
+            "max_frames": -1,  # Unlimited frames for premium
+            "max_speed": -1,   # Unlimited speed
+            "api_calls_per_month": -1,  # Unlimited API calls
             "radar_stations": -1,  # All stations
-            "historical_data_days": 365,  # 1 year
-            "custom_alert_zones": 10,  # 10 custom zones
+            "historical_data_days": -1,  # Unlimited historical data
+            "custom_alert_zones": -1,  # Unlimited custom alert zones
+            "radar_data_types": ["2d", "3d", "velocity", "reflectivity", "storm_relative", "differential_reflectivity"],
+            "advanced_ml_predictions": True,  # Full ML tornado prediction system
+            "real_time_tracking": True,       # Real-time storm tracking
+            "advanced_radar_controls": True,  # All advanced radar controls
+            "enhanced_ai_alerts": True,       # Enhanced AI alert system
+            "detailed_predictions": True,     # Detailed prediction data
+            "chatbot_access": True,          # AI chatbot for queries
+            "priority_support": True,        # Priority customer support
+            "export_data": True,             # Data export capabilities
         }
     
-    # Free tier limits
+    # Enhanced FREE TIER limits - Updated as per user requirements
     return {
-        "max_frames": 100,  # 100 frames maximum
-        "max_speed": 5.0,   # 5x speed maximum
-        "api_calls_per_month": 100,  # 100 API calls
-        "radar_stations": -1,  # All stations (but limited features)
-        "historical_data_days": 0,  # No historical data
-        "custom_alert_zones": 1,  # 1 location-based zone
+        "max_frames": 100,  # Maximum 100 frames for animation
+        "max_speed": 5.0,   # Maximum 5x animation speed
+        "api_calls_per_month": 500,  # Increased from 100 to 500 for better UX
+        "radar_stations": -1,  # Access to all radar stations
+        "historical_data_days": 0,  # No historical data access
+        "custom_alert_zones": 1,  # 1 location-based alert zone
+        "radar_data_types": ["2d", "reflectivity"],  # Live 2D radar data only
+        "advanced_ml_predictions": False,  # Basic predictions only
+        "real_time_tracking": True,        # Live radar data looping
+        "manual_radar_selection": True,    # Manual radar station selection
+        "nearest_radar_auto": True,        # Auto-select nearest radar
+        "all_map_controls": True,          # Full access to map controls
+        "auto_loop_on_load": True,         # Auto-start looping on app load
+        "location_based_ai": True,         # AI predictions for user location
+        "visual_prediction_access": True,  # Can see visual prediction data
     }
 
 # Admin access secret method
