@@ -15,7 +15,11 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
 
   useEffect(() => {
     loadPackages();
-  }, []);
+    if (user) {
+      loadTrialStatus();
+      loadSubscriptionFeatures();
+    }
+  }, [user]);
 
   const loadPackages = async () => {
     try {
