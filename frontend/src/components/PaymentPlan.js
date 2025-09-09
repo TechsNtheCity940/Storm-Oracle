@@ -315,13 +315,36 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
                 <span className="text-green-400 text-sm font-semibold">Extended API access (5000 calls/month)</span>
               </li>
             </ul>
-            <Button 
-              className="w-full bg-green-600 hover:bg-green-700"
-              onClick={() => handleSubscribe('premium_annual')}
-              disabled={loading || user?.subscription_type === 'premium'}
-            >
-              {loading ? 'Processing...' : 'Subscribe Annually'}
-            </Button>
+            {trialStatus?.can_start_trial ? (
+              <div className="space-y-2">
+                <Button 
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  onClick={handleStartTrial}
+                  disabled={loading}
+                >
+                  {loading ? 'Processing...' : '🎉 Start 7-Day Free Trial'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full border-green-600 text-green-400 hover:bg-green-600 hover:text-white"
+                  onClick={() => handleSubscribe('premium_annual')}
+                  disabled={loading || user?.subscription_type === 'premium'}
+                >
+                  {loading ? 'Processing...' : 'Subscribe Annually'}
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                className="w-full bg-green-600 hover:bg-green-700"
+                onClick={() => handleSubscribe('premium_annual')}
+                disabled={loading || user?.subscription_type === 'premium' || user?.subscription_type === 'trial'}
+              >
+                {loading ? 'Processing...' : 
+                 user?.subscription_type === 'trial' ? 'Trial Active' :
+                 user?.subscription_type === 'premium' ? 'Current Plan' :
+                 'Subscribe Annually'}
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
