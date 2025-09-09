@@ -273,9 +273,12 @@ const InteractiveRadarMap = ({
   const [dataType, setDataType] = useState('base_reflectivity');
   const [colorPalette, setColorPalette] = useState('nexrad_reflectivity');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [realRadarData, setRealRadarData] = useState(null);
 
   const playbackRef = useRef(null);
   const mapRef = useRef(null);
+  const mapContainerRef = useRef(null);
 
   // Load radar frames with proper error handling
   const loadRadarFrames = useCallback(async (stationId = null, frames = frameCount) => {
