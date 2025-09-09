@@ -415,8 +415,13 @@ async def get_user_subscription(user_id: str):
             tier="free",
             features=["basic_radar", "ai_alerts"]
         )
-        await db.user_subscriptions.insert_one(free_subscription.dict())
-        return free_subscription.dict()
+        subscription_dict = free_subscription.dict()
+        await db.user_subscriptions.insert_one(subscription_dict)
+        return subscription_dict
+    
+    # Remove MongoDB ObjectId before returning
+    if "_id" in subscription:
+        del subscription["_id"]
     return subscription
 
 @api_router.post("/subscription/{user_id}/upgrade")
