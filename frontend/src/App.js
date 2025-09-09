@@ -36,6 +36,17 @@ function App() {
     loadRadarStations();
     loadTornadoAlerts();
     loadUserSubscription();
+    loadActiveStorms();
+    loadMonitoringStatus();
+    
+    // Auto-refresh active storms every 2 minutes
+    const stormInterval = setInterval(loadActiveStorms, 120000);
+    const statusInterval = setInterval(loadMonitoringStatus, 60000);
+    
+    return () => {
+      clearInterval(stormInterval);
+      clearInterval(statusInterval);
+    };
   }, []);
 
   const loadRadarStations = async () => {
