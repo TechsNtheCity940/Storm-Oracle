@@ -126,11 +126,14 @@ backend:
     file: "/app/backend/auth.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "Updated check_subscription_limits() to include enhanced free tier features: live_2d_radar_data, manual_radar_selection, nearest_radar_auto, all_map_controls, radar_animation, auto_loop_start, location_based_ai, visual_prediction_access, and more."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Free tier limits correctly configured - max_frames: 100, max_speed: 5.0x, radar_data_types: ['2d', 'reflectivity']. GET /api/subscription/features returns proper free tier configuration with all enhanced features accessible. Radar data endpoints work without authentication for free tier access."
 
   - task: "Implement one-week free trial system" 
     implemented: true
