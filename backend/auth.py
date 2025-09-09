@@ -296,6 +296,10 @@ def check_subscription_limits(user_type: str, feature: str) -> bool:
     if user_type == UserType.PREMIUM:
         return True
     
+    # Trial users get full premium access during trial period
+    if user_type == UserType.TRIAL:
+        return True
+    
     # Enhanced FREE TIER features - New updated requirements
     free_features = [
         # Core radar features
