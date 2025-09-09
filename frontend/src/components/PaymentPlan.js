@@ -204,10 +204,10 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
             </ul>
             <Button 
               variant="outline" 
-              className="w-full border-slate-600 text-white hover:bg-slate-700"
+              className="w-full border-blue-500 text-blue-400 hover:bg-blue-600 hover:text-white"
               disabled
             >
-              Current Plan
+              ✨ Enhanced Free Tier
             </Button>
           </CardContent>
         </Card>
