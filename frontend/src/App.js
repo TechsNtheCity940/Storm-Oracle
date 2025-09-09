@@ -27,7 +27,9 @@ function App() {
   const [chatResponse, setChatResponse] = useState("");
   const [radarType, setRadarType] = useState("reflectivity");
   const [loading, setLoading] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
+  const [stormCells, setStormCells] = useState([]);
+  const [monitoringStatus, setMonitoringStatus] = useState({});
+  const [showRadarMap, setShowRadarMap] = useState(true);
 
   useEffect(() => {
     loadRadarStations();
