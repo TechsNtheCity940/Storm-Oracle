@@ -24,7 +24,8 @@ from auth import (
     PasswordResetConfirm, EmailVerification, UserType,
     hash_password, verify_password, create_access_token, create_refresh_token,
     generate_verification_token, send_verification_email, send_password_reset_email,
-    get_current_user, check_subscription_limits, check_admin_secret
+    get_current_user, check_subscription_limits, check_admin_secret,
+    is_trial_active, get_trial_days_remaining, start_free_trial
 )
 
 # Import our advanced ML system
