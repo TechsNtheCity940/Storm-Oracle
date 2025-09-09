@@ -389,7 +389,7 @@ const InteractiveRadarMap = ({
         // Station-specific radar with animation frames
         try {
           for (let i = 0; i < frames; i++) {
-            const frameTimestamp = Date.now() - (i * 5 * 60 * 1000); // 5 minutes apart
+            const frameTimestamp = Date.now() - (i * 60 * 1000); // 60 seconds apart (1 minute)
             const response = await axios.get(`${API}/radar-data/${stationId}?data_type=${dataType}&timestamp=${frameTimestamp}`);
             
             const frame = {
