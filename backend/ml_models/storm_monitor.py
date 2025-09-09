@@ -208,7 +208,7 @@ class AutomatedStormMonitor:
             ai_analysis = await self.claude_chat.send_message(claude_message)
             
             # Create automated alert
-            from tornado_predictor import TornadoAlert
+            from .tornado_predictor import TornadoAlert
             
             alert = TornadoAlert(
                 station_id=station_id,
