@@ -242,18 +242,36 @@ def check_subscription_limits(user_type: str, feature: str) -> bool:
     if user_type == UserType.PREMIUM:
         return True
     
-    # Enhanced free user features
+    # Enhanced FREE TIER features - New updated requirements
     free_features = [
-        "live_radar_data",      # Live 2D radar data
+        # Core radar features
+        "live_2d_radar_data",     # Live 2D radar data access
         "manual_radar_selection", # Manual radar station selection
-        "nearest_radar_location", # Auto-select nearest radar
-        "map_controls",         # All map controls (zoom, pan, etc.)
-        "radar_animation",      # Radar looping animation
-        "location_based_alerts", # AI alerts for user's location
-        "visual_prediction_data", # See AI model predictions on radar
-        "basic_storm_tracking",  # Basic storm cell information
-        "100_frame_limit",      # Maximum 100 animation frames
-        "5x_speed_limit",       # Maximum 5x animation speed
+        "nearest_radar_auto",     # Auto-select nearest radar to user location
+        
+        # Map controls and interaction
+        "all_map_controls",       # Full access to all map controls
+        "zoom_controls",          # Map zoom functionality
+        "pan_controls",           # Map panning functionality
+        "fullscreen_toggle",      # Fullscreen map view
+        
+        # Animation features
+        "radar_animation",        # Live radar data looping
+        "auto_loop_start",        # Auto-start looping on app load
+        "normal_speed_default",   # Normal speed looping by default
+        "5x_max_speed",           # Up to 5x animation speed
+        "100_frame_maximum",      # Maximum 100 frames for animation
+        
+        # AI and prediction features
+        "location_based_ai",      # AI prediction alerts based on user's location
+        "visual_prediction_access", # Access to visual data from AI predictions
+        "basic_tornado_alerts",   # Basic tornado warning system
+        "storm_tracking_basic",   # Basic storm cell tracking
+        
+        # Data access
+        "realtime_data_access",   # Access to real-time weather data
+        "weather_alerts",         # Basic weather alert notifications
+        "radar_station_info",     # Information about radar stations
     ]
     
     return feature in free_features
