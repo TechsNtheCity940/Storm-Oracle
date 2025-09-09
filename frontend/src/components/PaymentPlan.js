@@ -244,13 +244,36 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
               ))}
               <li className="text-slate-500 text-sm">+ more premium features</li>
             </ul>
-            <Button 
-              className="w-full bg-purple-600 hover:bg-purple-700"
-              onClick={() => handleSubscribe('premium_monthly')}
-              disabled={loading || user?.subscription_type === 'premium'}
-            >
-              {loading ? 'Processing...' : 'Subscribe Monthly'}
-            </Button>
+            {trialStatus?.can_start_trial ? (
+              <div className="space-y-2">
+                <Button 
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  onClick={handleStartTrial}
+                  disabled={loading}
+                >
+                  {loading ? 'Processing...' : '🎉 Start 7-Day Free Trial'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full border-purple-600 text-purple-400 hover:bg-purple-600 hover:text-white"
+                  onClick={() => handleSubscribe('premium_monthly')}
+                  disabled={loading || user?.subscription_type === 'premium'}
+                >
+                  {loading ? 'Processing...' : 'Subscribe Monthly'}
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                className="w-full bg-purple-600 hover:bg-purple-700"
+                onClick={() => handleSubscribe('premium_monthly')}
+                disabled={loading || user?.subscription_type === 'premium' || user?.subscription_type === 'trial'}
+              >
+                {loading ? 'Processing...' : 
+                 user?.subscription_type === 'trial' ? 'Trial Active' :
+                 user?.subscription_type === 'premium' ? 'Current Plan' :
+                 'Subscribe Monthly'}
+              </Button>
+            )}
           </CardContent>
         </Card>
 
