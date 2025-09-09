@@ -350,15 +350,26 @@ async def analyze_tornado_risk(station_id: str, data_type: str = "reflectivity")
             predicted_location={"lat": station['latitude'], "lng": station['longitude']},
             predicted_path=[{"lat": station['latitude'], "lng": station['longitude']}],
             confidence=75.0,  # Default confidence
-            message=ai_response
+            message=ai_response,
+            timestamp=datetime.now(timezone.utc),
+            estimated_touchdown_time=None
         )
         
-        # Store alert
+        # Store alert - convert to dict and handle datetime serialization
         alert_dict = alert.dict()
+        # Convert datetime objects to ISO strings for MongoDB
+        if 'timestamp' in alert_dict and alert_dict['timestamp']:
+            alert_dict['timestamp'] = alert_dict['timestamp'].isoformat()
+        if 'estimated_touchdown_time' in alert_dict and alert_dict['estimated_touchdown_time']:
+            alert_dict['estimated_touchdown_time'] = alert_dict['estimated_touchdown_time'].isoformat()
+            
         await db.tornado_alerts.insert_one(alert_dict)
         
+        # For response, use the original dict with proper datetime objects
+        response_alert = alert.dict()
+        
         return {
-            "alert": alert_dict,
+            "alert": response_alert,
             "ai_analysis": ai_response,
             "station_info": station
         }
