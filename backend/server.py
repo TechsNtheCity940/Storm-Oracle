@@ -293,87 +293,49 @@ async def get_radar_station(station_id: str):
         del station["_id"]
     return RadarStation(**station)
 
-@api_router.get("/radar-image/{station_id}")
-async def get_radar_image(station_id: str, data_type: str = "reflectivity"):
-    """Get radar image directly (proxy to avoid CORS issues)"""
+from radar_pyart import radar_processor
+import time
+
+@api_router.get("/radar-image/national")
+async def get_national_radar_image(data_type: str = "reflectivity"):
+    """Get national radar composite using PyART"""
     try:
-        # Get station coordinates
-        station = await db.radar_stations.find_one({"station_id": station_id})
-        if not station:
-            raise HTTPException(status_code=404, detail="Station not found")
-        
-        lat, lng = station["latitude"], station["longitude"]
-        
-        # Try different working radar sources
-        radar_sources = [
-            # Current NOAA radar image services (2025)
-            f"https://radar.weather.gov/ridge/lite/{station_id.lower()}_0.gif?{int(time.time())}",
-            f"https://radar.weather.gov/ridge/standard/{station_id.lower()}_0.gif?{int(time.time())}",
-            # National Mosaic for better coverage
-            f"https://radar.weather.gov/ridge/RadarImg/N0R/{station_id}_0.gif?{int(time.time())}",
-            # Velocity data
-            f"https://radar.weather.gov/ridge/lite/{station_id.lower()}_1.gif?{int(time.time())}",
-            # Try older format paths
-            f"https://radar.weather.gov/ridge/Conus/RadarImg/latest_{station_id.lower()}_0.gif"
-        ]
-        
-        # Try each source until one works
-        for radar_url in radar_sources:
-            try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    response = await client.get(radar_url)
-                    if response.status_code == 200 and response.content:
-                        # Return the image directly
-                        from fastapi.responses import Response
-                        return Response(
-                            content=response.content,
-                            media_type="image/gif",
-                            headers={
-                                "Cache-Control": "max-age=300",  # 5 minutes
-                                "Access-Control-Allow-Origin": "*",
-                                "Access-Control-Allow-Methods": "GET",
-                                "Access-Control-Allow-Headers": "*"
-                            }
-                        )
-            except Exception as e:
-                logger.warning(f"Failed to fetch from {radar_url}: {str(e)}")
-                continue
-        
-        # If all sources fail, create a placeholder image
-        from PIL import Image, ImageDraw, ImageFont
-        import io
-        
-        # Create a placeholder image
-        img = Image.new('RGB', (512, 512), color='lightgray')
-        draw = ImageDraw.Draw(img)
-        
-        # Add text
-        try:
-            # Try to load a font
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-        except:
-            font = ImageFont.load_default()
-        
-        text = f"Radar: {station_id}\nNo data available"
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        
-        position = ((512 - text_width) // 2, (512 - text_height) // 2)
-        draw.text(position, text, fill='black', font=font)
-        
-        # Convert to bytes
-        img_bytes = io.BytesIO()
-        img.save(img_bytes, format='PNG')
-        img_bytes.seek(0)
+        image_data = await radar_processor.get_national_radar_composite(data_type)
         
         from fastapi.responses import Response
         return Response(
-            content=img_bytes.getvalue(),
+            content=image_data,
             media_type="image/png",
             headers={
-                "Cache-Control": "max-age=60",
-                "Access-Control-Allow-Origin": "*"
+                "Cache-Control": "max-age=300",  # 5 minutes
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET",
+                "Access-Control-Allow-Headers": "*"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error serving national radar image: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate national radar image")
+
+@api_router.get("/radar-image/{station_id}")
+async def get_radar_image(station_id: str, data_type: str = "reflectivity"):
+    """Get radar image using PyART (station-specific or national)"""
+    try:
+        if station_id.upper() == "NATIONAL":
+            image_data = await radar_processor.get_national_radar_composite(data_type)
+        else:
+            image_data = await radar_processor.get_station_radar(station_id, data_type)
+        
+        from fastapi.responses import Response
+        return Response(
+            content=image_data,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "max-age=300",  # 5 minutes
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET",
+                "Access-Control-Allow-Headers": "*"
             }
         )
         
