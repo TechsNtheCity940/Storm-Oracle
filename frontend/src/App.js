@@ -101,9 +101,15 @@ function App() {
     }
   };
 
-  const selectRadarStation = async (station) => {
+  const selectRadarStation = async (stationId) => {
     setLoading(true);
     try {
+      // Find the full station object from the stations array
+      const station = radarStations.find(s => s.station_id === stationId);
+      if (!station) {
+        throw new Error(`Station ${stationId} not found`);
+      }
+      
       setSelectedStation(station);
       
       const radarResponse = await axios.get(`${API}/radar-data/${station.station_id}?data_type=${radarType}`);
