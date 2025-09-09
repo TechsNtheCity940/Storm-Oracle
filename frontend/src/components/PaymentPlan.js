@@ -10,6 +10,8 @@ const API = process.env.REACT_APP_BACKEND_URL;
 const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
   const [loading, setLoading] = useState(false);
   const [packages, setPackages] = useState({});
+  const [trialStatus, setTrialStatus] = useState(null);
+  const [subscriptionFeatures, setSubscriptionFeatures] = useState(null);
 
   useEffect(() => {
     loadPackages();
