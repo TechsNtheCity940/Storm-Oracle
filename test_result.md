@@ -188,3 +188,5 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Identified critical radar visualization bug - user reports no visual radar data despite working API. Starting fixes for UI positioning and radar overlay display issues."
+  - agent: "testing"
+    message: "CRITICAL RADAR API ISSUE FOUND: Comprehensive testing of radar data endpoints reveals 100% failure rate for radar image URLs. All generated URLs return HTTP 404 errors. Root cause: Backend uses invalid timestamps and outdated API formats. NWS RIDGE URLs deprecated, RainViewer URLs need valid timestamps from their API. Backend must be updated to use working radar APIs. This is the definitive cause of the 'no visual radar data' issue reported by user."
