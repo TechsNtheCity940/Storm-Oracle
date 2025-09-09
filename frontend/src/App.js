@@ -38,14 +38,17 @@ function App() {
     loadUserSubscription();
     loadActiveStorms();
     loadMonitoringStatus();
+    loadNationalRadar(); // Load national radar by default
     
     // Auto-refresh active storms every 2 minutes
     const stormInterval = setInterval(loadActiveStorms, 120000);
     const statusInterval = setInterval(loadMonitoringStatus, 60000);
+    const radarInterval = setInterval(loadNationalRadar, 300000); // Refresh national radar every 5 minutes
     
     return () => {
       clearInterval(stormInterval);
       clearInterval(statusInterval);
+      clearInterval(radarInterval);
     };
   }, []);
 
