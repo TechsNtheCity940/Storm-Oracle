@@ -105,7 +105,7 @@ class RadarProcessor:
     async def get_station_radar(self, station_id, data_type="reflectivity"):
         """Get individual station radar using PyART with circular coverage"""
         try:
-            # Station coordinates (example for common stations)
+            # Station coordinates (comprehensive NEXRAD station list)
             station_coords = {
                 'KEAX': (-94.2645, 38.8103),  # Kansas City
                 'KFWS': (-97.3031, 32.5731),  # Fort Worth
@@ -115,6 +115,55 @@ class RadarProcessor:
                 'KOUN': (-97.4625, 35.2333),  # Norman, OK
                 'KBMX': (-86.7697, 33.1722),  # Birmingham
                 'KHTX': (-86.0833, 34.9306),  # Huntsville
+                'KABX': (-106.8239, 35.1498), # Albuquerque
+                'KEWX': (-98.0286, 29.7044),  # Austin/San Antonio
+                'KCRP': (-97.5111, 27.7842),  # Corpus Christi
+                'KDYX': (-99.2542, 32.5386),  # Dyess AFB
+                'KFDR': (-98.9761, 34.3631),  # Frederick
+                'KGRK': (-97.3831, 30.7219),  # Central Texas
+                'KHGX': (-95.0789, 29.4719),  # Houston
+                'KJAX': (-81.7019, 30.4847),  # Jacksonville
+                'KTBW': (-82.4019, 27.7056),  # Tampa Bay
+                'KAMX': (-80.4128, 25.6111),  # Miami
+                'KMLB': (-80.6531, 28.1133),  # Melbourne
+                'KTLH': (-84.3289, 30.3975),  # Tallahassee
+                'KMOB': (-88.2397, 30.6797),  # Mobile
+                'KDGX': (-89.9844, 32.2803),  # Jackson, MS
+                'KGWX': (-88.3292, 33.8967),  # Columbus, MS
+                'KNQA': (-89.8733, 35.3447),  # Memphis
+                'KPAH': (-88.7719, 37.0683),  # Paducah
+                'KSGF': (-93.4006, 37.2353),  # Springfield, MO
+                'KLSX': (-90.6828, 38.6989),  # St. Louis
+                'KDVN': (-90.5808, 41.6117),  # Davenport
+                'KDMX': (-93.7228, 41.7311),  # Des Moines
+                'KOAX': (-96.3667, 41.3200),  # Omaha
+                'KUEX': (-98.4422, 40.3208),  # Hastings, NE
+                'KGLD': (-101.7, 39.3667),    # Goodland, KS
+                'KTWX': (-96.2325, 38.9969),  # Topeka
+                'KICT': (-97.4431, 37.6544),  # Wichita
+                'KBIS': (-100.7608, 46.7708), # Bismarck
+                'KMVX': (-97.3258, 47.5278),  # Grand Forks
+                'KABR': (-98.4131, 45.4558),  # Aberdeen
+                'KUDX': (-102.8297, 44.1250), # Rapid City
+                'KCYS': (-104.8061, 41.1519), # Cheyenne
+                'KRIW': (-108.4772, 43.0661), # Riverton
+                'KFTG': (-104.5458, 39.7867), # Denver
+                'KGJX': (-108.2136, 39.0619), # Grand Junction
+                'KPUX': (-104.1811, 38.4595), # Pueblo
+                'KFCX': (-80.2742, 37.0242),  # Roanoke
+                'KLWX': (-77.4778, 38.9753),  # Washington DC
+                'KDOX': (-75.4400, 38.8256),  # Dover AFB
+                'KPHI': (-75.2400, 39.8719),  # Philadelphia
+                'KOKX': (-72.8644, 40.8656),  # New York
+                'KENX': (-74.0639, 42.5867),  # Albany
+                'KBGM': (-75.9847, 42.1997),  # Binghamton
+                'KBUF': (-78.7367, 42.9489),  # Buffalo
+                'KTYX': (-75.6800, 43.7556),  # Montague
+                'KCXX': (-73.1661, 44.5111),  # Burlington
+                'KGYX': (-70.2567, 43.8914),  # Gray, ME
+                'KCBW': (-67.8067, 46.0392),  # Houlton
+                'KBOX': (-71.1367, 41.9556),  # Boston
+                'KBIS': (-100.7608, 46.7708), # Bismarck
             }
             
             if station_id in station_coords:
