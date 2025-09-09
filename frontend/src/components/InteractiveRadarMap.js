@@ -81,13 +81,23 @@ const RadarOverlay = ({ radarFrames, currentFrame, opacity, colorPalette, dataTy
   const overlayRef = useRef(null);
 
   useEffect(() => {
+    console.log('🖼️ RadarOverlay effect triggered:', {
+      framesCount: radarFrames.length,
+      currentFrame,
+      hasFrames: radarFrames.length > 0,
+      frameInBounds: currentFrame < radarFrames.length
+    });
+
     if (radarFrames.length > 0 && currentFrame < radarFrames.length) {
       // Remove existing overlay
       if (overlayRef.current) {
+        console.log('🗑️ Removing existing radar overlay');
         map.removeLayer(overlayRef.current);
       }
 
       const frame = radarFrames[currentFrame];
+      console.log('📸 Current frame data:', frame);
+      
       if (frame && frame.imageUrl) {
         // Create image overlay with color filter
         const imageBounds = [
@@ -95,15 +105,41 @@ const RadarOverlay = ({ radarFrames, currentFrame, opacity, colorPalette, dataTy
           [frame.bounds.north, frame.bounds.east]
         ];
 
+        console.log('🗺️ Creating image overlay:', {
+          imageUrl: frame.imageUrl,
+          bounds: imageBounds,
+          opacity
+        });
+
         // Apply color filter based on palette and data type
         const filterClass = `radar-${dataType}-${colorPalette}`;
 
-        overlayRef.current = L.imageOverlay(frame.imageUrl, imageBounds, {
-          opacity: opacity,
-          interactive: false,
-          className: `radar-overlay ${filterClass}`
-        }).addTo(map);
+        try {
+          overlayRef.current = L.imageOverlay(frame.imageUrl, imageBounds, {
+            opacity: opacity,
+            interactive: false,
+            className: `radar-overlay ${filterClass}`
+          }).addTo(map);
+          
+          console.log('✅ Radar overlay added to map successfully');
+          
+          // Add load and error event listeners for debugging
+          overlayRef.current.on('load', () => {
+            console.log('🎉 Radar image loaded successfully!');
+          });
+          
+          overlayRef.current.on('error', (e) => {
+            console.error('❌ Radar image failed to load:', e);
+          });
+          
+        } catch (error) {
+          console.error('💥 Error creating radar overlay:', error);
+        }
+      } else {
+        console.log('⚠️ Frame missing imageUrl:', frame);
       }
+    } else {
+      console.log('ℹ️ No radar frames to display or invalid frame index');
     }
 
     return () => {
