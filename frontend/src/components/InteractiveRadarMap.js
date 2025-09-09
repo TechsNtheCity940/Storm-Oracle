@@ -493,10 +493,13 @@ const InteractiveRadarMap = ({
   };
 
   return (
-    <div className="relative w-full h-full">
-      {/* Collapsible Radar Controls */}
-      <Card className={`absolute top-4 left-4 z-[1000] bg-slate-800/95 border-slate-700 backdrop-blur-sm transition-all duration-300 ${controlsCollapsed ? 'w-12' : 'w-80'}`}>
-        <CardHeader className="pb-3">
+    <div 
+      ref={mapContainerRef}
+      className={`relative w-full h-full ${isFullscreen ? 'fixed inset-0 z-[9999] bg-black' : ''}`}
+    >
+      {/* Scrollable Collapsible Radar Controls */}
+      <Card className={`absolute top-4 left-4 z-[1000] bg-slate-800/95 border-slate-700 backdrop-blur-sm transition-all duration-300 ${controlsCollapsed ? 'w-12' : 'w-80'} ${isFullscreen ? 'max-h-[calc(100vh-2rem)]' : 'max-h-[calc(100vh-8rem)]'}`}>
+        <CardHeader className="pb-3 flex-shrink-0">
           <CardTitle className="text-white text-sm flex items-center justify-between">
             {!controlsCollapsed && (
               <span className="flex items-center">
@@ -504,182 +507,257 @@ const InteractiveRadarMap = ({
                 Radar Control Center
               </span>
             )}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setControlsCollapsed(!controlsCollapsed)}
-              className="text-white hover:bg-slate-700 p-1"
-            >
-              {controlsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-            </Button>
+            <div className="flex items-center space-x-1">
+              {/* Fullscreen Toggle */}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={toggleFullscreen}
+                className="text-white hover:bg-slate-700 p-1"
+                title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+              >
+                {isFullscreen ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              </Button>
+              
+              {/* Collapse Toggle */}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setControlsCollapsed(!controlsCollapsed)}
+                className="text-white hover:bg-slate-700 p-1"
+                title={controlsCollapsed ? "Expand Controls" : "Collapse Controls"}
+              >
+                {controlsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         
         {!controlsCollapsed && (
-          <CardContent className="space-y-4">
-            {/* Data Type Selection */}
-            <div className="space-y-2">
-              <label className="text-xs text-slate-400">Radar Data Type</label>
-              <Select value={dataType} onValueChange={setDataType}>
-                <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-600">
-                  {Object.entries(RADAR_DATA_TYPES).map(([key, config]) => (
-                    <SelectItem key={key} value={key} className="text-white hover:bg-slate-700">
-                      {config.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Playback Controls */}
-            <div className="flex items-center space-x-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => goToFrame(0)}
-                className="border-slate-600 text-white hover:bg-slate-700"
-              >
-                <SkipBack className="h-3 w-3" />
-              </Button>
-              
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={togglePlayback}
-                className="border-slate-600 text-white hover:bg-slate-700"
-              >
-                {isPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-              </Button>
-              
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => goToFrame(radarFrames.length - 1)}
-                className="border-slate-600 text-white hover:bg-slate-700"
-              >
-                <SkipForward className="h-3 w-3" />
-              </Button>
-              
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => loadRadarFrames(selectedStation?.station_id)}
-                disabled={isLoading}
-                className="border-slate-600 text-white hover:bg-slate-700"
-              >
-                <RotateCcw className="h-3 w-3" />
-              </Button>
-            </div>
-
-            {/* Frame Slider */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs text-slate-400">
-                <span>Frame {currentFrame + 1} of {radarFrames.length}</span>
-                <span>{radarFrames[currentFrame] ? new Date(radarFrames[currentFrame].timestamp).toLocaleTimeString() : '--:--'}</span>
-              </div>
-              <Slider
-                value={[currentFrame]}
-                onValueChange={(value) => goToFrame(value[0])}
-                max={radarFrames.length - 1}
-                step={1}
-                className="w-full"
-              />
-            </div>
-
-            {/* Frame Count Control */}
-            <div className="space-y-2">
-              <label className="text-xs text-slate-400">Frames to Load: {frameCount}</label>
-              <Slider
-                value={[frameCount]}
-                onValueChange={(value) => setFrameCount(value[0])}
-                min={50}
-                max={250}
-                step={10}
-                className="w-full"
-              />
-            </div>
-
-            {/* Speed Control */}
-            <div className="space-y-2">
-              <label className="text-xs text-slate-400">Speed: {(1000/playbackSpeed).toFixed(1)}x</label>
-              <Slider
-                value={[playbackSpeed]}
-                onValueChange={(value) => setPlaybackSpeed(value[0])}
-                min={100}
-                max={2000}
-                step={100}
-                className="w-full"
-              />
-            </div>
-
-            {/* Opacity Control */}
-            <div className="space-y-2">
-              <label className="text-xs text-slate-400">Radar Opacity: {Math.round(radarOpacity * 100)}%</label>
-              <Slider
-                value={[radarOpacity]}
-                onValueChange={(value) => setRadarOpacity(value[0])}
-                min={0.1}
-                max={1}
-                step={0.1}
-                className="w-full"
-              />
-            </div>
-
-            {/* Advanced Settings Toggle */}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-              className="w-full border-slate-600 text-white hover:bg-slate-700"
-            >
-              <Settings className="h-3 w-3 mr-2" />
-              Advanced Settings
-            </Button>
-
-            {/* Advanced Settings Panel */}
-            {showAdvancedSettings && (
-              <div className="space-y-3 border-t border-slate-600 pt-3">
-                <div className="space-y-2">
-                  <label className="text-xs text-slate-400 flex items-center">
-                    <Palette className="h-3 w-3 mr-1" />
-                    Color Palette
-                  </label>
-                  <Select value={colorPalette} onValueChange={setColorPalette}>
-                    <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-600">
-                      {Object.entries(COLOR_PALETTES).map(([key, palette]) => (
-                        <SelectItem key={key} value={key} className="text-white hover:bg-slate-700">
-                          <div>
-                            <div className="font-medium">{palette.name}</div>
-                            <div className="text-xs text-slate-400">{palette.description}</div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Color Preview */}
-                <div className="space-y-1">
-                  <label className="text-xs text-slate-400">Color Preview</label>
-                  <div className="flex space-x-1">
-                    {COLOR_PALETTES[colorPalette]?.colors.map((color, index) => (
-                      <div
-                        key={index}
-                        className="w-4 h-4 rounded border border-slate-600"
-                        style={{ backgroundColor: color }}
-                        title={`Level ${index + 1}`}
-                      />
+          <CardContent className="space-y-4 overflow-y-auto overflow-x-hidden max-h-full pr-2">
+            <div className="space-y-4">
+              {/* Data Type Selection */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium">Radar Data Type</label>
+                <Select value={dataType} onValueChange={handleDataTypeChange}>
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-600 max-h-60 overflow-y-auto">
+                    {Object.entries(RADAR_DATA_TYPES).map(([key, config]) => (
+                      <SelectItem key={key} value={key} className="text-white hover:bg-slate-700">
+                        {config.name}
+                      </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Current Selection Info */}
+              {selectedStation && (
+                <div className="bg-slate-700/50 p-3 rounded border border-slate-600">
+                  <div className="text-white text-sm font-medium">{selectedStation.name}</div>
+                  <div className="text-slate-300 text-xs">{selectedStation.station_id}</div>
+                  <div className="text-slate-400 text-xs">
+                    {selectedStation.latitude.toFixed(4)}°, {selectedStation.longitude.toFixed(4)}°
                   </div>
                 </div>
+              )}
+
+              {/* Playback Controls */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium">Animation Controls</label>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => goToFrame(0)}
+                    className="border-slate-600 text-white hover:bg-slate-700"
+                    title="Go to First Frame"
+                  >
+                    <SkipBack className="h-3 w-3" />
+                  </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={togglePlayback}
+                    className="border-slate-600 text-white hover:bg-slate-700"
+                    title={isPlaying ? "Pause Animation" : "Play Animation"}
+                  >
+                    {isPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                  </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => goToFrame(radarFrames.length - 1)}
+                    className="border-slate-600 text-white hover:bg-slate-700"
+                    title="Go to Latest Frame"
+                  >
+                    <SkipForward className="h-3 w-3" />
+                  </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => loadRadarFrames(selectedStation?.station_id)}
+                    disabled={isLoading}
+                    className="border-slate-600 text-white hover:bg-slate-700"
+                    title="Refresh Radar Data"
+                  >
+                    <RotateCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
               </div>
-            )}
+
+              {/* Frame Slider */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-slate-400">
+                  <span>Frame {currentFrame + 1} of {radarFrames.length}</span>
+                  <span>
+                    {radarFrames[currentFrame] 
+                      ? new Date(radarFrames[currentFrame].timestamp).toLocaleTimeString()
+                      : '--:--'
+                    }
+                  </span>
+                </div>
+                <Slider
+                  value={[currentFrame]}
+                  onValueChange={(value) => goToFrame(value[0])}
+                  max={Math.max(0, radarFrames.length - 1)}
+                  step={1}
+                  className="w-full"
+                  disabled={radarFrames.length === 0}
+                />
+              </div>
+
+              {/* Frame Count Control */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium">
+                  Frames to Load: {frameCount}
+                  <span className="text-slate-500 ml-1">({(frameCount * 10)} min)</span>
+                </label>
+                <Slider
+                  value={[frameCount]}
+                  onValueChange={(value) => setFrameCount(value[0])}
+                  min={50}
+                  max={250}
+                  step={10}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Speed Control */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium">
+                  Animation Speed: {(1000/playbackSpeed).toFixed(1)}x
+                </label>
+                <Slider
+                  value={[playbackSpeed]}
+                  onValueChange={(value) => setPlaybackSpeed(value[0])}
+                  min={100}
+                  max={2000}
+                  step={100}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Opacity Control */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium">
+                  Radar Opacity: {Math.round(radarOpacity * 100)}%
+                </label>
+                <Slider
+                  value={[radarOpacity]}
+                  onValueChange={(value) => setRadarOpacity(value[0])}
+                  min={0.1}
+                  max={1}
+                  step={0.1}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Loading Status */}
+              {isLoading && (
+                <div className="bg-blue-600/20 border border-blue-600/30 p-3 rounded">
+                  <div className="text-blue-300 text-sm flex items-center">
+                    <RotateCcw className="h-4 w-4 mr-2 animate-spin" />
+                    Loading {frameCount} radar frames...
+                  </div>
+                </div>
+              )}
+
+              {/* Advanced Settings Toggle */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                className="w-full border-slate-600 text-white hover:bg-slate-700"
+              >
+                <Settings className="h-3 w-3 mr-2" />
+                Advanced Settings
+                <ChevronRight className={`h-3 w-3 ml-auto transition-transform ${showAdvancedSettings ? 'rotate-90' : ''}`} />
+              </Button>
+
+              {/* Advanced Settings Panel */}
+              {showAdvancedSettings && (
+                <div className="space-y-3 border-t border-slate-600 pt-3">
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400 flex items-center font-medium">
+                      <Palette className="h-3 w-3 mr-1" />
+                      Color Palette
+                    </label>
+                    <Select value={colorPalette} onValueChange={setColorPalette}>
+                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-600 max-h-48 overflow-y-auto">
+                        {Object.entries(COLOR_PALETTES).map(([key, palette]) => (
+                          <SelectItem key={key} value={key} className="text-white hover:bg-slate-700">
+                            <div>
+                              <div className="font-medium">{palette.name}</div>
+                              <div className="text-xs text-slate-400">{palette.description}</div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Color Preview */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-slate-400 font-medium">Color Preview</label>
+                    <div className="flex space-x-1 flex-wrap">
+                      {COLOR_PALETTES[colorPalette]?.colors.map((color, index) => (
+                        <div
+                          key={index}
+                          className="w-6 h-6 rounded border border-slate-600 flex-shrink-0"
+                          style={{ backgroundColor: color }}
+                          title={`Intensity Level ${index + 1}`}
+                        />
+                      ))}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {COLOR_PALETTES[colorPalette]?.description}
+                    </div>
+                  </div>
+
+                  {/* Additional Metadata */}
+                  <div className="space-y-2 text-xs text-slate-400">
+                    <div className="border-t border-slate-600 pt-2">
+                      <div>Data Source: {realRadarData?.api_source || 'National Weather Service'}</div>
+                      <div>Update Interval: {realRadarData?.refresh_interval || 300}s</div>
+                      {realRadarData?.coordinates && (
+                        <div>
+                          Radar Center: {realRadarData.coordinates.lat.toFixed(4)}°, {realRadarData.coordinates.lon.toFixed(4)}°
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         )}
       </Card>
