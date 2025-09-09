@@ -312,6 +312,10 @@ async def analyze_tornado_risk(station_id: str, data_type: str = "reflectivity")
         if not station:
             raise HTTPException(status_code=404, detail="Station not found")
         
+        # Remove MongoDB ObjectId 
+        if "_id" in station:
+            del station["_id"]
+        
         # Create analysis prompt for Claude
         analysis_prompt = f"""
         Analyze the current weather conditions for radar station {station_id} ({station['name']}) located at {station['latitude']}, {station['longitude']}.
