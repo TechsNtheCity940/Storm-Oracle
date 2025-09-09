@@ -504,6 +504,90 @@ const InteractiveRadarMap = ({
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [realRadarData, setRealRadarData] = useState(null);
+  
+  // Gaming/Tech UI enhancements
+  const [is3DMode, setIs3DMode] = useState(false);
+  const [floatingPanel, setFloatingPanel] = useState({
+    visible: false,
+    position: { x: 0, y: 0 },
+    data: null,
+    type: 'default'
+  });
+  const [customMarkersVisible, setCustomMarkersVisible] = useState({
+    lightning: true,
+    hail: true,
+    wind: true,
+    precipitation: true,
+    stormCells: true
+  });
+  
+  // Sample weather marker data (in real app, this would come from API)
+  const [weatherMarkers, setWeatherMarkers] = useState({
+    lightning: [
+      {
+        id: 'lightning_1',
+        latitude: 35.2271,
+        longitude: -97.5186,
+        intensity: 3,
+        strikeCount: 15,
+        strikes_per_minute: 8,
+        strike_type: 'Cloud-to-Ground',
+        polarity: 'Negative',
+        current: 45
+      },
+      {
+        id: 'lightning_2',
+        latitude: 32.7767,
+        longitude: -96.7970,
+        intensity: 2,
+        strikeCount: 8,
+        strikes_per_minute: 12,
+        strike_type: 'Intracloud',
+        polarity: 'Positive',
+        current: 25
+      }
+    ],
+    hail: [
+      {
+        id: 'hail_1',
+        latitude: 39.7391,
+        longitude: -104.9847,
+        hailSize: 3,
+        probability: 85,
+        diameter: 1.75,
+        size_name: 'Golf Ball',
+        duration: 8,
+        accumulation: 'Heavy'
+      }
+    ],
+    wind: [
+      {
+        id: 'wind_1',
+        latitude: 41.8781,
+        longitude: -87.6298,
+        windSpeed: 65,
+        direction: 270,
+        gustSpeed: 85,
+        strength_category: 'Severe',
+        direction_name: 'W',
+        shear: 'High'
+      }
+    ],
+    precipitation: [
+      {
+        id: 'precip_1',
+        latitude: 47.6062,
+        longitude: -122.3321,
+        precipType: 'rain',
+        intensity: 3,
+        intensity_name: 'Heavy',
+        rate: 0.75,
+        accumulation: 1.2,
+        duration: 45,
+        temperature: 58
+      }
+    ]
+  });
 
   const playbackRef = useRef(null);
   const mapRef = useRef(null);
