@@ -30,6 +30,7 @@ function App() {
   const [stormCells, setStormCells] = useState([]);
   const [monitoringStatus, setMonitoringStatus] = useState({});
   const [showRadarMap, setShowRadarMap] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
     loadRadarStations();
