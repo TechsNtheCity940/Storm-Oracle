@@ -1119,6 +1119,11 @@ const InteractiveRadarMap = ({
           onStationClick={onStationSelect}
           selectedStation={selectedStation}
         />
+        
+        <TornadoMarkers 
+          tornadoData={tornadoData}
+          onTornadoClick={onTornadoClick}
+        />
       </MapContainer>
 
       {/* Enhanced CSS for radar visualization, scrolling, and fullscreen */}
