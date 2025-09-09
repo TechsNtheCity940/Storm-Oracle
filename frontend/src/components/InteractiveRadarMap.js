@@ -354,48 +354,51 @@ const InteractiveRadarMap = ({
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
 
-  // Enhanced radar frames loading with real data
+  // Enhanced radar frames loading with smooth interpolation (like Radar Omega)
   const loadRadarFrames = useCallback(async (stationId = null, frames = frameCount) => {
     setIsLoading(true);
-    console.log('🎯 Loading radar frames for station:', stationId, 'dataType:', dataType);
+    console.log('🎯 Loading smooth radar frames for station:', stationId, 'dataType:', dataType);
     
     try {
       let radarFrames = [];
       
       if (!stationId && !selectedStation) {
-        // National radar view (default)
-        console.log('🌍 Loading national radar data');
+        // National radar view with smooth temporal interpolation
+        console.log('🌍 Loading national radar data with smooth animation');
         
         try {
-          // Create multiple frames for animation (simulating time progression)
+          // Create many frames with small time intervals for smooth animation (like Radar Omega)
+          const baseTime = Date.now();
+          const frameIntervalSeconds = 30; // 30 seconds between frames for smooth movement
+          
           for (let i = 0; i < frames; i++) {
-            const frameTimestamp = Date.now() - (i * 60 * 1000); // 60 seconds apart (1 minute)
-            const response = await axios.get(`${API}/radar-data/NATIONAL?data_type=${dataType}&timestamp=${frameTimestamp}`);
+            // Calculate frame time for smooth interpolation
+            const frameTime = (baseTime - (i * frameIntervalSeconds * 1000)) / 1000; // Convert to seconds for backend
             
             const frame = {
-              timestamp: frameTimestamp,
+              timestamp: baseTime - (i * frameIntervalSeconds * 1000),
               frameIndex: frames - i - 1,
-              imageUrl: response.data.radar_url + `&t=${frameTimestamp}`, // Add timestamp for cache busting
+              imageUrl: `${API}/radar-image/national?data_type=${dataType}&frame_time=${frameTime}&cache_bust=${Date.now()}`,
               bounds: {
                 north: 50,
                 south: 20,
                 east: -60,
                 west: -130
               },
-              stationData: response.data
+              frameTime: frameTime // Store for smooth transitions
             };
             
             radarFrames.unshift(frame);
           }
           
-          console.log('🌍 Created national radar animation with', radarFrames.length, 'frames');
+          console.log('🌍 Created smooth national radar animation with', radarFrames.length, 'frames');
         } catch (error) {
           console.error('❌ Error loading national radar frames:', error);
           // Fallback single frame
           radarFrames = [{
             timestamp: Date.now(),
             frameIndex: 0,
-            imageUrl: `${API}/radar-image/national?data_type=${dataType}&t=${Date.now()}`,
+            imageUrl: `${API}/radar-image/national?data_type=${dataType}&cache_bust=${Date.now()}`,
             bounds: {
               north: 50,
               south: 20,
@@ -405,32 +408,41 @@ const InteractiveRadarMap = ({
           }];
         }
       } else if (stationId && selectedStation) {
-        console.log('📡 Loading station-specific radar data for:', selectedStation.name);
+        console.log('📡 Loading station-specific radar data with smooth animation for:', selectedStation.name);
         
-        // Station-specific radar with animation frames
+        // Station-specific radar with smooth animation frames
         try {
+          const baseTime = Date.now();
+          const frameIntervalSeconds = 30; // 30 seconds for smooth station animation
+          
           for (let i = 0; i < frames; i++) {
-            const frameTimestamp = Date.now() - (i * 60 * 1000); // 60 seconds apart (1 minute)
-            const response = await axios.get(`${API}/radar-data/${stationId}?data_type=${dataType}&timestamp=${frameTimestamp}`);
+            const frameTimestamp = baseTime - (i * frameIntervalSeconds * 1000);
+            const frameTime = frameTimestamp / 1000;
             
             const frame = {
               timestamp: frameTimestamp,
               frameIndex: frames - i - 1,
-              imageUrl: response.data.radar_url + `&t=${frameTimestamp}`,
+              imageUrl: `${API}/radar-image/${stationId}?data_type=${dataType}&frame_time=${frameTime}&cache_bust=${Date.now()}`,
               bounds: {
-                north: response.data.coordinates.lat + 1.5,
-                south: response.data.coordinates.lat - 1.5,
-                east: response.data.coordinates.lon + 1.5,
-                west: response.data.coordinates.lon - 1.5
+                north: selectedStation.latitude + 2.5,
+                south: selectedStation.latitude - 2.5,
+                east: selectedStation.longitude + 2.5,
+                west: selectedStation.longitude - 2.5
               },
-              stationData: response.data
+              frameTime: frameTime,
+              stationData: {
+                station_id: stationId,
+                coordinates: {
+                  lat: selectedStation.latitude,
+                  lon: selectedStation.longitude
+                }
+              }
             };
             
             radarFrames.unshift(frame);
           }
           
-          // Set real radar data from most recent frame
-          setRealRadarData(radarFrames[radarFrames.length - 1].stationData);
+          console.log('📡 Created smooth station radar animation with', radarFrames.length, 'frames');
           
         } catch (error) {
           console.error('❌ Error loading station radar frames:', error);
@@ -438,18 +450,18 @@ const InteractiveRadarMap = ({
           radarFrames = [{
             timestamp: Date.now(),
             frameIndex: 0,
-            imageUrl: `${API}/radar-image/${stationId}?data_type=${dataType}&t=${Date.now()}`,
+            imageUrl: `${API}/radar-image/${stationId}?data_type=${dataType}&cache_bust=${Date.now()}`,
             bounds: {
-              north: selectedStation.latitude + 1.5,
-              south: selectedStation.latitude - 1.5,
-              east: selectedStation.longitude + 1.5,
-              west: selectedStation.longitude - 1.5
+              north: selectedStation.latitude + 2.5,
+              south: selectedStation.latitude - 2.5,
+              east: selectedStation.longitude + 2.5,
+              west: selectedStation.longitude - 2.5
             }
           }];
         }
       }
       
-      console.log('🎬 Setting', radarFrames.length, 'radar frames for animation');
+      console.log('🎬 Setting', radarFrames.length, 'smooth radar frames for seamless animation');
       setRadarFrames(radarFrames);
       setCurrentFrame(radarFrames.length - 1); // Start with most recent frame
       
