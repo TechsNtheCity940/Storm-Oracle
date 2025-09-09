@@ -18,6 +18,10 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage
 # Import our advanced ML system
 from ml_models.tornado_predictor import tornado_prediction_engine
 from ml_models.data_processor import ml_data_pipeline
+from ml_models.storm_monitor import AutomatedStormMonitor
+
+# Global storm monitor
+storm_monitor = None
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
