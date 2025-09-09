@@ -298,17 +298,26 @@ async def upgrade_user_subscription(user_id: str, package_id: str):
         else:
             subscription_end = datetime.now(timezone.utc) + timedelta(days=30)
         
-        # Update user subscription
+        # Update user subscription - clear trial data when upgrading to paid
+        update_data = {
+            "subscription_type": package["subscription_type"],
+            "subscription_end": subscription_end.isoformat(),
+            "subscription_package": package_id,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Clear trial data if user was on trial
+        user = await users_collection.find_one({"id": user_id})
+        if user and user.get("subscription_type") == UserType.TRIAL:
+            update_data.update({
+                "trial_start": None,
+                "trial_end": None,
+                "converted_from_trial": True
+            })
+        
         await users_collection.update_one(
             {"id": user_id},
-            {
-                "$set": {
-                    "subscription_type": package["subscription_type"],
-                    "subscription_end": subscription_end.isoformat(),
-                    "subscription_package": package_id,
-                    "updated_at": datetime.now(timezone.utc).isoformat()
-                }
-            }
+            {"$set": update_data}
         )
         
         logger.info(f"User {user_id} subscription upgraded to {package_id}")
