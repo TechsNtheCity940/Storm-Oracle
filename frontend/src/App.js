@@ -12,7 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "./components/ui/input";
 import { toast } from "sonner"; 
 import { Toaster } from "./components/ui/sonner";
-import InteractiveRadarMap from "./components/InteractiveRadarMap"; 
+import InteractiveRadarMap from "./components/InteractiveRadarMap";
+import PaymentPlan from "./components/PaymentPlan";
+import PaymentSuccess from "./components/PaymentSuccess"; 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
