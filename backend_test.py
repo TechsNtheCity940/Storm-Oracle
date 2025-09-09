@@ -340,8 +340,11 @@ class StormOracleAPITester:
         if success and stations_data and isinstance(stations_data, list) and len(stations_data) > 0:
             test_station = stations_data[0].get('station_id', 'KEAX')
         
-        # Test radar data
+        # Test radar data (basic)
         self.test_radar_data(test_station)
+        
+        # Test COMPREHENSIVE radar data for visualization issue
+        self.test_radar_data_comprehensive()
         
         # Test CRITICAL AI tornado analysis
         self.test_tornado_analysis(test_station)
