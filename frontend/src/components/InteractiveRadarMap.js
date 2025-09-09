@@ -1232,6 +1232,22 @@ const InteractiveRadarMap = ({
           tornadoData={tornadoData}
           onTornadoClick={onTornadoClick}
         />
+        
+        <CustomWeatherMarkers 
+          weatherMarkers={weatherMarkers}
+          markersVisible={customMarkersVisible}
+          onMarkerHover={(type, data, position) => {
+            setFloatingPanel({
+              visible: true,
+              position,
+              data,
+              type
+            });
+          }}
+          onMarkerLeave={() => {
+            setFloatingPanel(prev => ({ ...prev, visible: false }));
+          }}
+        />
       </MapContainer>
 
       {/* Enhanced CSS for radar visualization, scrolling, and fullscreen */}
