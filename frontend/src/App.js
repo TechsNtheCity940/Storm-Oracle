@@ -45,6 +45,355 @@ function App() {
   const [showRadarMap, setShowRadarMap] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
 
+  // Check for existing authentication on app load
+  useEffect(() => {
+    const token = localStorage.getItem('storm_oracle_token');
+    if (token) {
+      getCurrentUser(token);
+    }
+    
+    // Check for payment success redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('session_id')) {
+      setCurrentView('payment-success');
+    }
+  }, []);
+
+  const getCurrentUser = async (token) => {
+    try {
+      const response = await axios.get(`${API}/auth/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setUser(response.data);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      localStorage.removeItem('storm_oracle_token');
+    }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    try {
+      const response = await axios.post(`${API}/auth/login`, loginForm);
+      const { access_token, user } = response.data;
+      
+      localStorage.setItem('storm_oracle_token', access_token);
+      setUser(user);
+      setIsAuthenticated(true);
+      setCurrentView('radar');
+      toast.success(`Welcome back, ${user.full_name}!`);
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('Login failed. Please check your credentials.');
+    }
+    setAuthLoading(false);
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    try {
+      const response = await axios.post(`${API}/auth/register`, registerForm);
+      toast.success('Registration successful! Please check your email for verification.');
+      setShowLogin(true);
+      setRegisterForm({ email: '', password: '', full_name: '' });
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast.error('Registration failed. Please try again.');
+    }
+    setAuthLoading(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('storm_oracle_token');
+    setUser(null);
+    setIsAuthenticated(false);
+    setCurrentView('login');
+    toast.success('Logged out successfully');
+  };
+
+  const NavigationHeader = () => (
+    <header className="bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          <div className="flex items-center space-x-4">
+            <h1 className="text-2xl font-bold text-white cursor-pointer" onClick={() => setCurrentView('radar')}>
+              🌪️ Storm Oracle
+            </h1>
+            {user && (
+              <Badge variant={user.subscription_type === 'admin' ? 'default' : 'secondary'}>
+                {user.subscription_type === 'admin' ? 'Admin' : user.subscription_type?.toUpperCase() || 'FREE'}
+              </Badge>
+            )}
+          </div>
+
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center space-x-6">
+            <Button 
+              variant="ghost" 
+              className="text-white hover:text-blue-400"
+              onClick={() => setCurrentView('radar')}
+            >
+              Radar
+            </Button>
+            <Button 
+              variant="ghost" 
+              className="text-white hover:text-blue-400"
+              onClick={() => setCurrentView('pricing')}
+            >
+              Pricing
+            </Button>
+            {isAuthenticated ? (
+              <div className="flex items-center space-x-4">
+                <Button 
+                  variant="ghost" 
+                  className="text-white hover:text-blue-400 flex items-center space-x-2"
+                  onClick={() => setCurrentView('account')}
+                >
+                  <User className="h-4 w-4" />
+                  <span>{user?.full_name || 'Account'}</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="text-white hover:text-red-400 flex items-center space-x-2"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Logout</span>
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={() => setCurrentView('login')}
+              >
+                Login
+              </Button>
+            )}
+          </nav>
+
+          {/* Mobile menu button */}
+          <div className="md:hidden">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="text-white"
+            >
+              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile Navigation */}
+        {menuOpen && (
+          <div className="md:hidden border-t border-slate-800 py-4">
+            <div className="flex flex-col space-y-2">
+              <Button 
+                variant="ghost" 
+                className="text-left text-white hover:text-blue-400 justify-start"
+                onClick={() => { setCurrentView('radar'); setMenuOpen(false); }}
+              >
+                Radar
+              </Button>
+              <Button 
+                variant="ghost" 
+                className="text-left text-white hover:text-blue-400 justify-start"
+                onClick={() => { setCurrentView('pricing'); setMenuOpen(false); }}
+              >
+                Pricing
+              </Button>
+              {isAuthenticated ? (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    className="text-left text-white hover:text-blue-400 justify-start"
+                    onClick={() => { setCurrentView('account'); setMenuOpen(false); }}
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    Account
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    className="text-left text-white hover:text-red-400 justify-start"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  className="bg-blue-600 hover:bg-blue-700 justify-start"
+                  onClick={() => { setCurrentView('login'); setMenuOpen(false); }}
+                >
+                  Login
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+
+  const LoginPage = () => (
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <Card className="w-full max-w-md bg-slate-800/95 border-slate-700">
+        <CardHeader className="text-center">
+          <CardTitle className="text-white text-2xl">
+            🌪️ Storm Oracle
+          </CardTitle>
+          <CardDescription className="text-slate-300">
+            {showLogin ? 'Sign in to your account' : 'Create your account'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={showLogin ? handleLogin : handleRegister} className="space-y-4">
+            {!showLogin && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Full Name
+                </label>
+                <Input
+                  type="text"
+                  value={registerForm.full_name}
+                  onChange={(e) => setRegisterForm({...registerForm, full_name: e.target.value})}
+                  className="bg-slate-700 border-slate-600 text-white"
+                  placeholder="Enter your full name"
+                  required
+                />
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Email
+              </label>
+              <Input
+                type="email"
+                value={showLogin ? loginForm.email : registerForm.email}
+                onChange={(e) => showLogin ? 
+                  setLoginForm({...loginForm, email: e.target.value}) :
+                  setRegisterForm({...registerForm, email: e.target.value})
+                }
+                className="bg-slate-700 border-slate-600 text-white"
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Password
+              </label>
+              <Input
+                type="password"
+                value={showLogin ? loginForm.password : registerForm.password}
+                onChange={(e) => showLogin ? 
+                  setLoginForm({...loginForm, password: e.target.value}) :
+                  setRegisterForm({...registerForm, password: e.target.value})
+                }
+                className="bg-slate-700 border-slate-600 text-white"
+                placeholder="Enter your password"
+                required
+              />
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full bg-blue-600 hover:bg-blue-700"
+              disabled={authLoading}
+            >
+              {authLoading ? 'Processing...' : (showLogin ? 'Sign In' : 'Create Account')}
+            </Button>
+          </form>
+          
+          <div className="mt-4 text-center">
+            <Button
+              variant="ghost"
+              className="text-blue-400 hover:text-blue-300"
+              onClick={() => setShowLogin(!showLogin)}
+            >
+              {showLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  const AccountPage = () => (
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-white mb-2">Account Settings</h1>
+        <p className="text-slate-400">Manage your Storm Oracle account and subscription</p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card className="bg-slate-800/95 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center space-x-2">
+              <User className="h-5 w-5" />
+              <span>Profile Information</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Full Name</label>
+              <p className="text-white">{user?.full_name}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+              <p className="text-white">{user?.email}</p>
+              <Badge variant={user?.email_verified ? 'default' : 'destructive'} className="mt-1">
+                {user?.email_verified ? 'Verified' : 'Unverified'}
+              </Badge>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Member Since</label>
+              <p className="text-white">
+                {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-800/95 border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center space-x-2">
+              <Crown className="h-5 w-5" />
+              <span>Subscription</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Current Plan</label>
+              <div className="flex items-center space-x-2">
+                <Badge variant={user?.subscription_type === 'admin' ? 'default' : 'secondary'}>
+                  {user?.subscription_type === 'admin' ? 'Admin' : 
+                   user?.subscription_type === 'premium' ? 'Premium' : 'Free'}
+                </Badge>
+                {user?.subscription_type === 'admin' && (
+                  <span className="text-yellow-400 text-sm">Full Access</span>
+                )}
+              </div>
+            </div>
+            {user?.subscription_type === 'free' && (
+              <div className="mt-4">
+                <Button 
+                  className="bg-purple-600 hover:bg-purple-700"
+                  onClick={() => setCurrentView('pricing')}
+                >
+                  Upgrade to Premium
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+
   useEffect(() => {
     loadRadarStations();
     loadTornadoAlerts();
