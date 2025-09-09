@@ -388,6 +388,193 @@ const TornadoMarkers = ({ tornadoData = [], onTornadoClick }) => {
   return null;
 };
 
+const CustomWeatherMarkers = ({ weatherMarkers, markersVisible, onMarkerHover, onMarkerLeave }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    // Clear existing custom weather markers
+    map.eachLayer((layer) => {
+      if (layer.options && layer.options.isCustomWeatherMarker) {
+        map.removeLayer(layer);
+      }
+    });
+
+    // Add lightning markers
+    if (markersVisible.lightning && weatherMarkers.lightning) {
+      weatherMarkers.lightning.forEach((lightning) => {
+        const icon = L.divIcon({
+          className: 'custom-weather-marker lightning-marker-container',
+          html: `
+            <div class="lightning-marker" style="
+              --lightning-size: ${16 + lightning.intensity * 6}px;
+              --flash-speed: ${Math.max(0.8, 2.5 - lightning.intensity * 0.3)}s;
+              --lightning-color: #fbbf24;
+              --lightning-opacity: ${0.8 + lightning.intensity * 0.04};
+            ">
+              <div class="lightning-icon">⚡</div>
+              ${lightning.strikeCount > 1 ? `<div class="strike-count">${lightning.strikeCount}</div>` : ''}
+              <div class="electrical-field"></div>
+            </div>
+          `,
+          iconSize: [16 + lightning.intensity * 6, 16 + lightning.intensity * 6],
+          iconAnchor: [8 + lightning.intensity * 3, 8 + lightning.intensity * 3]
+        });
+
+        const marker = L.marker([lightning.latitude, lightning.longitude], {
+          icon,
+          isCustomWeatherMarker: true
+        }).addTo(map);
+
+        marker.on('mouseover', (e) => {
+          onMarkerHover('lightning', lightning, { x: e.originalEvent.clientX, y: e.originalEvent.clientY });
+        });
+        marker.on('mouseout', onMarkerLeave);
+      });
+    }
+
+    // Add hail markers
+    if (markersVisible.hail && weatherMarkers.hail) {
+      weatherMarkers.hail.forEach((hail) => {
+        const icon = L.divIcon({
+          className: 'custom-weather-marker hail-marker-container',
+          html: `
+            <div class="hail-marker" style="
+              --hail-size: ${14 + hail.hailSize * 6}px;
+              --hail-color: #e5e7eb;
+              --hail-opacity: ${0.7 + hail.hailSize * 0.05};
+            ">
+              <div class="hail-icon">🧊</div>
+              <div class="hail-probability">${hail.probability}%</div>
+              <div class="size-indicator">${hail.hailSize}</div>
+              <div class="hail-impact-ring"></div>
+            </div>
+          `,
+          iconSize: [14 + hail.hailSize * 6, 14 + hail.hailSize * 6],
+          iconAnchor: [7 + hail.hailSize * 3, 7 + hail.hailSize * 3]
+        });
+
+        const marker = L.marker([hail.latitude, hail.longitude], {
+          icon,
+          isCustomWeatherMarker: true
+        }).addTo(map);
+
+        marker.on('mouseover', (e) => {
+          onMarkerHover('hail', hail, { x: e.originalEvent.clientX, y: e.originalEvent.clientY });
+        });
+        marker.on('mouseout', onMarkerLeave);
+      });
+    }
+
+    // Add wind markers
+    if (markersVisible.wind && weatherMarkers.wind) {
+      weatherMarkers.wind.forEach((wind) => {
+        const getWindColor = (speed) => {
+          if (speed >= 74) return '#dc2626';
+          if (speed >= 58) return '#ea580c';
+          if (speed >= 39) return '#f59e0b';
+          if (speed >= 25) return '#eab308';
+          return '#22c55e';
+        };
+
+        const icon = L.divIcon({
+          className: 'custom-weather-marker wind-marker-container',
+          html: `
+            <div class="wind-marker" style="
+              --wind-size: ${20 + Math.min(wind.windSpeed / 5, 16)}px;
+              --wind-color: ${getWindColor(wind.windSpeed)};
+              --wind-direction: ${wind.direction}deg;
+            ">
+              <div class="wind-arrow">
+                <div class="arrow-shaft"></div>
+                <div class="arrow-head"></div>
+              </div>
+              <div class="wind-speed">
+                ${wind.windSpeed}
+                ${wind.gustSpeed ? `<span class="gust">G${wind.gustSpeed}</span>` : ''}
+              </div>
+              <div class="wind-flow-lines">
+                <div class="flow-line line-1"></div>
+                <div class="flow-line line-2"></div>
+                <div class="flow-line line-3"></div>
+              </div>
+            </div>
+          `,
+          iconSize: [20 + Math.min(wind.windSpeed / 5, 16), 20 + Math.min(wind.windSpeed / 5, 16)],
+          iconAnchor: [10 + Math.min(wind.windSpeed / 10, 8), 10 + Math.min(wind.windSpeed / 10, 8)]
+        });
+
+        const marker = L.marker([wind.latitude, wind.longitude], {
+          icon,
+          isCustomWeatherMarker: true
+        }).addTo(map);
+
+        marker.on('mouseover', (e) => {
+          onMarkerHover('wind', wind, { x: e.originalEvent.clientX, y: e.originalEvent.clientY });
+        });
+        marker.on('mouseout', onMarkerLeave);
+      });
+    }
+
+    // Add precipitation markers
+    if (markersVisible.precipitation && weatherMarkers.precipitation) {
+      weatherMarkers.precipitation.forEach((precip) => {
+        const getPrecipColor = (type) => {
+          const colors = {
+            rain: '#3b82f6',
+            snow: '#e5e7eb',
+            sleet: '#94a3b8',
+            freezing_rain: '#06b6d4'
+          };
+          return colors[type] || '#3b82f6';
+        };
+
+        const getPrecipIcon = (type) => {
+          const icons = {
+            rain: '🌧️',
+            snow: '❄️',
+            sleet: '🌨️',
+            freezing_rain: '🧊'
+          };
+          return icons[type] || '🌧️';
+        };
+
+        const icon = L.divIcon({
+          className: 'custom-weather-marker precipitation-marker-container',
+          html: `
+            <div class="precipitation-marker" style="
+              --precip-size: ${18 + precip.intensity * 4}px;
+              --precip-color: ${getPrecipColor(precip.precipType)};
+            ">
+              <div class="precip-icon">${getPrecipIcon(precip.precipType)}</div>
+              <div class="precip-intensity">${precip.intensity_name}</div>
+              ${precip.accumulation > 0 ? `<div class="accumulation">${precip.accumulation}"</div>` : ''}
+              <div class="precip-animation">
+                <div class="drop drop-1"></div>
+                <div class="drop drop-2"></div>
+                <div class="drop drop-3"></div>
+              </div>
+            </div>
+          `,
+          iconSize: [18 + precip.intensity * 4, 18 + precip.intensity * 4],
+          iconAnchor: [9 + precip.intensity * 2, 9 + precip.intensity * 2]
+        });
+
+        const marker = L.marker([precip.latitude, precip.longitude], {
+          icon,
+          isCustomWeatherMarker: true
+        }).addTo(map);
+
+        marker.on('mouseover', (e) => {
+          onMarkerHover('precipitation', precip, { x: e.originalEvent.clientX, y: e.originalEvent.clientY });
+        });
+        marker.on('mouseout', onMarkerLeave);
+      });
+    }
+  }, [map, weatherMarkers, markersVisible, onMarkerHover, onMarkerLeave]);
+
+  return null;
+};
+
 const RadarStationMarkers = ({ radarStations, onStationClick, selectedStation }) => {
   const map = useMap();
 
