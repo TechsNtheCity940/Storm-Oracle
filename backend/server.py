@@ -594,6 +594,85 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
         logger.error(f"Get user error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to get user information")
 
+@api_router.post("/auth/start-trial")
+async def start_premium_trial(current_user: dict = Depends(get_current_user)):
+    """Start 7-day free trial for premium features"""
+    try:
+        user = await users_collection.find_one({"id": current_user["user_id"]})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if user is already premium or has used trial
+        if user.get("subscription_type") == UserType.PREMIUM:
+            raise HTTPException(status_code=400, detail="User already has premium subscription")
+        
+        if user.get("trial_activated", False):
+            raise HTTPException(status_code=400, detail="Free trial already used")
+        
+        # Start trial
+        trial_data = start_free_trial(current_user["user_id"])
+        
+        # Update user in database
+        await users_collection.update_one(
+            {"id": current_user["user_id"]},
+            {
+                "$set": {
+                    "subscription_type": UserType.TRIAL,
+                    "trial_start": trial_data["trial_start"],
+                    "trial_end": trial_data["trial_end"],
+                    "trial_activated": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        
+        return {
+            "message": "Free trial activated successfully",
+            "trial_end": trial_data["trial_end"],
+            "trial_days": 7,
+            "features_unlocked": [
+                "Unlimited radar frames",
+                "2D and 3D radar data",
+                "Advanced ML tornado predictions",
+                "Real-time storm tracking",
+                "Enhanced AI alerts",
+                "AI chatbot access",
+                "Priority support"
+            ]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Trial activation error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to activate trial")
+
+@api_router.get("/auth/trial-status")
+async def get_trial_status(current_user: dict = Depends(get_current_user)):
+    """Get user's trial status and days remaining"""
+    try:
+        user = await users_collection.find_one({"id": current_user["user_id"]})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        trial_active = is_trial_active(user)
+        days_remaining = get_trial_days_remaining(user)
+        
+        return {
+            "trial_active": trial_active,
+            "days_remaining": days_remaining,
+            "trial_activated": user.get("trial_activated", False),
+            "subscription_type": user.get("subscription_type", UserType.FREE),
+            "trial_end": user.get("trial_end"),
+            "can_start_trial": not user.get("trial_activated", False) and user.get("subscription_type") == UserType.FREE
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Trial status error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get trial status")
+
 # Protected endpoint example
 @api_router.get("/premium/advanced-features")
 async def get_advanced_features(current_user: dict = Depends(get_current_user)):
