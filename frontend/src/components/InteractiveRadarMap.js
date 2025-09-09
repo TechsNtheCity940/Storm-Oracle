@@ -694,7 +694,7 @@ const InteractiveRadarMap = ({
         />
       </MapContainer>
 
-      {/* Custom CSS for animations */}
+      {/* Enhanced CSS for radar visualization and animations */}
       <style jsx global>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
@@ -705,6 +705,39 @@ const InteractiveRadarMap = ({
           pointer-events: none;
         }
         
+        /* NEXRAD Reflectivity Color Filters */
+        .radar-base_reflectivity-nexrad_reflectivity {
+          filter: hue-rotate(0deg) saturate(1.2) contrast(1.1);
+        }
+        
+        .radar-base_reflectivity-high_contrast_reflectivity {
+          filter: hue-rotate(240deg) saturate(1.5) contrast(1.3);
+        }
+        
+        /* Velocity Color Filters */
+        .radar-base_velocity-velocity_standard {
+          filter: hue-rotate(120deg) saturate(1.3) contrast(1.2);
+        }
+        
+        .radar-storm_relative_velocity-velocity_storm {
+          filter: hue-rotate(180deg) saturate(1.4) contrast(1.3);
+        }
+        
+        /* MRMS Color Filters */
+        .radar-mrms_reflectivity-mrms_standard {
+          filter: hue-rotate(60deg) saturate(1.1) contrast(1.2) brightness(1.1);
+        }
+        
+        /* Composite Color Filters */
+        .radar-composite_reflectivity-composite {
+          filter: hue-rotate(300deg) saturate(1.3) contrast(1.2) brightness(0.9);
+        }
+        
+        /* Echo Tops Color Filters */
+        .radar-echo_tops-echo_tops {
+          filter: hue-rotate(30deg) saturate(1.2) contrast(1.1) brightness(1.1);
+        }
+        
         .storm-popup, .station-popup {
           font-family: system-ui, -apple-system, sans-serif;
         }
@@ -712,6 +745,15 @@ const InteractiveRadarMap = ({
         .radar-map .leaflet-control-attribution {
           background: rgba(0, 0, 0, 0.7);
           color: white;
+        }
+        
+        /* Collapsible controls animation */
+        .controls-collapsed {
+          transform: translateX(-240px);
+        }
+        
+        .controls-expanded {
+          transform: translateX(0);
         }
       `}</style>
     </div>
