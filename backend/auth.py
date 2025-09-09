@@ -80,6 +80,7 @@ class EmailVerification(BaseModel):
 class UserType:
     FREE = "free"
     PREMIUM = "premium"
+    TRIAL = "trial"  # One-week free trial
     ADMIN = "admin"
 
 # Password utilities
