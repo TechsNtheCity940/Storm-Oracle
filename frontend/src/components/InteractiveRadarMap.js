@@ -13,6 +13,7 @@ import {
   ChevronLeft, ChevronRight, Settings, Palette, Eye, EyeOff 
 } from 'lucide-react';
 import axios from 'axios';
+import TornadoMarker from './TornadoMarker';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
