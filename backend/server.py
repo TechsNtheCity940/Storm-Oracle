@@ -297,17 +297,21 @@ from radar_pyart import radar_processor
 import time
 
 @api_router.get("/radar-image/national")
-async def get_national_radar_image(data_type: str = "reflectivity"):
-    """Get national radar composite using PyART"""
+async def get_national_radar_image(data_type: str = "reflectivity", frame_time: Optional[float] = None):
+    """Get national radar composite using PyART with smooth temporal evolution"""
     try:
-        image_data = await radar_processor.get_national_radar_composite(data_type)
+        # Use provided frame_time or current time
+        if frame_time is None:
+            frame_time = time.time()
+            
+        image_data = await radar_processor.get_national_radar_composite(data_type, frame_time)
         
         from fastapi.responses import Response
         return Response(
             content=image_data,
             media_type="image/png",
             headers={
-                "Cache-Control": "max-age=300",  # 5 minutes
+                "Cache-Control": "max-age=30",  # Shorter cache for smooth animation
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET",
                 "Access-Control-Allow-Headers": "*"
