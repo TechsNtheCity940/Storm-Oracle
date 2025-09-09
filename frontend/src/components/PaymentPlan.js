@@ -425,8 +425,14 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
                 <p className="text-slate-400 text-sm">
                   {user.subscription_type === 'admin' ? 'Full admin access to all features' : 
                    user.subscription_type === 'premium' ? 'Premium subscription active' :
-                   'Free tier - upgrade for more features'}
+                   user.subscription_type === 'trial' ? `Free trial active - ${trialStatus?.days_remaining || 0} days remaining` :
+                   'Enhanced free tier - all map controls, live 2D radar, 100 frames, 5x speed'}
                 </p>
+                {trialStatus?.can_start_trial && user.subscription_type === 'free' && (
+                  <p className="text-purple-400 text-sm font-semibold">
+                    🎉 7-day premium trial available - try all features free!
+                  </p>
+                )}
               </div>
               {user.subscription_type === 'free' && (
                 <Button 
