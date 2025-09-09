@@ -1,11 +1,11 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, BackgroundTasks, status
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -14,6 +14,15 @@ import httpx
 import math
 import time
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+# Import authentication
+from auth import (
+    UserCreate, UserLogin, UserResponse, TokenResponse, PasswordReset, 
+    PasswordResetConfirm, EmailVerification, UserType,
+    hash_password, verify_password, create_access_token, create_refresh_token,
+    generate_verification_token, send_verification_email, send_password_reset_email,
+    get_current_user, check_subscription_limits, check_admin_secret
+)
 
 # Import our advanced ML system
 from ml_models.tornado_predictor import tornado_prediction_engine
