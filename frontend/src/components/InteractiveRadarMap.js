@@ -269,6 +269,10 @@ const InteractiveRadarMap = ({
   const [mapCenter, setMapCenter] = useState([39.8283, -98.5795]); // Center of USA
   const [mapZoom, setMapZoom] = useState(5);
   const [isLoading, setIsLoading] = useState(false);
+  const [controlsCollapsed, setControlsCollapsed] = useState(false);
+  const [dataType, setDataType] = useState('base_reflectivity');
+  const [colorPalette, setColorPalette] = useState('nexrad_reflectivity');
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   const playbackRef = useRef(null);
   const mapRef = useRef(null);
