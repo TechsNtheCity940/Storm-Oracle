@@ -234,6 +234,59 @@ async def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict
     # This will be implemented with database check
     return current_user
 
+# Trial and subscription utilities
+def is_trial_active(user_data: dict) -> bool:
+    """Check if user's trial period is still active"""
+    if user_data.get("subscription_type") != UserType.TRIAL:
+        return False
+    
+    trial_end = user_data.get("trial_end")
+    if not trial_end:
+        return False
+    
+    try:
+        # Handle both string and datetime objects
+        if isinstance(trial_end, str):
+            trial_end_date = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
+        else:
+            trial_end_date = trial_end
+        
+        return datetime.now(timezone.utc) < trial_end_date
+    except:
+        return False
+
+def get_trial_days_remaining(user_data: dict) -> int:
+    """Get number of days remaining in trial"""
+    if not is_trial_active(user_data):
+        return 0
+    
+    trial_end = user_data.get("trial_end")
+    if not trial_end:
+        return 0
+    
+    try:
+        if isinstance(trial_end, str):
+            trial_end_date = datetime.fromisoformat(trial_end.replace('Z', '+00:00'))
+        else:
+            trial_end_date = trial_end
+        
+        remaining = trial_end_date - datetime.now(timezone.utc)
+        return max(0, remaining.days)
+    except:
+        return 0
+
+def start_free_trial(user_id: str) -> dict:
+    """Start a 7-day free trial for premium features"""
+    trial_start = datetime.now(timezone.utc)
+    trial_end = trial_start + timedelta(days=7)
+    
+    return {
+        "subscription_type": UserType.TRIAL,
+        "trial_start": trial_start.isoformat(),
+        "trial_end": trial_end.isoformat(),
+        "trial_activated": True
+    }
+
 # User subscription utilities
 def check_subscription_limits(user_type: str, feature: str) -> bool:
     """Check if user can access feature based on subscription"""
