@@ -101,3 +101,87 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Move the map zoom controls to the top right of the map, the button to make the map full screen should be on the bottom left of the map when the map is full screen the button to back out of full screen should be bottom left of the screen. I still see absolutely no visual radar data, I see the radars and can select them, but nothing appears no matter what type of data or radar i select. No specific requirements for the scroll option on the control menu, the collapsible menu should function exactly the same wether full screen or not full screen, leave the controls menu at top left of map, I will do manual visual testing after the fixes"
+
+backend:
+  - task: "Fix radar visual data display - no radar overlays showing"
+    implemented: false
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "User reports no visual radar data appears despite radar station selection working. Critical bug - radar overlays not displaying."
+
+frontend:
+  - task: "Move map zoom controls to top-right of map"
+    implemented: false
+    working: false
+    file: "/app/frontend/src/components/InteractiveRadarMap.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Need to move Leaflet zoom controls from default top-left to top-right position"
+
+  - task: "Move fullscreen button to bottom-left of map"
+    implemented: false
+    working: false
+    file: "/app/frontend/src/components/InteractiveRadarMap.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Fullscreen button currently in control panel, needs to be moved to bottom-left corner of map"
+
+  - task: "Make collapsible control panel scrollable"
+    implemented: false
+    working: false
+    file: "/app/frontend/src/components/InteractiveRadarMap.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Control panel needs to be scrollable to prevent UI overflow"
+
+  - task: "Fix radar visual data overlay display"
+    implemented: false
+    working: false
+    file: "/app/frontend/src/components/InteractiveRadarMap.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "RadarOverlay component not displaying actual radar imagery. User reports no visual radar data despite API working."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Fix radar visual data display - no radar overlays showing"
+    - "Move map zoom controls to top-right of map"
+    - "Move fullscreen button to bottom-left of map"
+    - "Fix radar visual data overlay display"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Identified critical radar visualization bug - user reports no visual radar data despite working API. Starting fixes for UI positioning and radar overlay display issues."
