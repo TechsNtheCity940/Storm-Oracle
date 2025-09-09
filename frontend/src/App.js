@@ -290,7 +290,7 @@ function App() {
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           
-          {/* Radar Station Selection */}
+          {/* Live Storm Monitoring */}
           <div className="lg:col-span-1 space-y-6">
             <Card className="bg-slate-800/95 border-slate-700 backdrop-blur-sm">
               <CardHeader>
