@@ -403,9 +403,17 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
           <CardHeader>
             <CardTitle className="text-white flex items-center space-x-2">
               <span>Your Current Plan</span>
-              <Badge variant={user.subscription_type === 'admin' ? 'default' : 'secondary'}>
-                {user.subscription_type === 'admin' ? 'Admin' : user.subscription_type?.toUpperCase() || 'FREE'}
+              <Badge variant={user.subscription_type === 'admin' ? 'default' : 
+                              user.subscription_type === 'trial' ? 'default' : 'secondary'}>
+                {user.subscription_type === 'admin' ? 'Admin' : 
+                 user.subscription_type === 'trial' ? 'TRIAL' :
+                 user.subscription_type?.toUpperCase() || 'FREE'}
               </Badge>
+              {trialStatus?.trial_active && (
+                <Badge variant="outline" className="ml-2 border-purple-500 text-purple-400">
+                  {trialStatus.days_remaining} days left
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
