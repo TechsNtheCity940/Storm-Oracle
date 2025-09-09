@@ -269,6 +269,9 @@ async def get_radar_station(station_id: str):
     station = await db.radar_stations.find_one({"station_id": station_id})
     if not station:
         raise HTTPException(status_code=404, detail="Radar station not found")
+    # Remove MongoDB ObjectId before creating Pydantic model
+    if "_id" in station:
+        del station["_id"]
     return RadarStation(**station)
 
 @api_router.get("/radar-data/{station_id}")
