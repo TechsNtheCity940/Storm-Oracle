@@ -105,23 +105,53 @@
 user_problem_statement: "Update Storm Oracle pricing model and subscription features. Premium should be $15/month with all bells and whistles including 2D and 3D radar data and advanced controls. Implement enhanced free tier with: live 2D radar data, manual/nearest radar selection, all map controls (max 100 frames, auto-looping at normal speed, max 5x), and location-based AI predictions with visual data access. Add one-week free trial for premium features."
 
 backend:
-  - task: "Fix radar visual data display - no radar overlays showing"
+  - task: "Update subscription pricing to $15/month for premium"
     implemented: true
     working: true
     file: "/app/backend/server.py"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: false
-        agent: "main"
-        comment: "User reports no visual radar data appears despite radar station selection working. Critical bug - radar overlays not displaying."
-      - working: false
-        agent: "testing"
-        comment: "CRITICAL ISSUE IDENTIFIED: All radar URLs (100% failure rate) return HTTP 404 errors. Backend generates invalid radar URLs using incorrect timestamps and outdated API formats. NWS RIDGE URLs no longer work, RainViewer URLs use wrong timestamp format. Backend needs to use valid timestamps from RainViewer API (https://api.rainviewer.com/public/weather-maps.json) or modern NWS radar API (https://mapservices.weather.noaa.gov/eventdriven/rest/services/radar/radar_base_reflectivity_time/ImageServer). This explains why no visual radar data appears - all generated URLs are broken."
       - working: true
-        agent: "testing"
-        comment: "✅ RADAR API FIXED! Comprehensive testing shows 100% success rate for radar URLs. All tested stations (KEAX, KFWS, KAMA, KHTX, KOKX) now return working radar URLs from NOAA ImageServer. URLs return actual PNG image data (HTTP 200). API properly formats coordinates, provides valid timestamps, and supports multiple data types (reflectivity, velocity, base_reflectivity). The backend now uses working NOAA ImageServer URLs with proper bounding box parameters. This should resolve the 'no visual radar data' issue reported by user."
+        agent: "main"
+        comment: "Updated PAYMENT_PACKAGES with premium monthly at $15.00 and premium annual at $150.00 (16% discount). Updated enterprise to $299.99."
+
+  - task: "Implement enhanced free tier features"
+    implemented: true
+    working: true  
+    file: "/app/backend/auth.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Updated check_subscription_limits() to include enhanced free tier features: live_2d_radar_data, manual_radar_selection, nearest_radar_auto, all_map_controls, radar_animation, auto_loop_start, location_based_ai, visual_prediction_access, and more."
+
+  - task: "Implement one-week free trial system" 
+    implemented: true
+    working: true
+    file: "/app/backend/auth.py, /app/backend/server.py"
+    stuck_count: 0
+    priority: "high" 
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added UserType.TRIAL, is_trial_active(), get_trial_days_remaining(), start_free_trial() functions. Added /auth/start-trial and /auth/trial-status endpoints. Updated subscription limits to give trial users full premium access."
+
+  - task: "Add subscription features endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added /subscription/features endpoint to return user's current subscription type, limits, trial info, and pricing tiers with feature comparisons."
 
 frontend:
   - task: "Move map zoom controls to top-right of map"
