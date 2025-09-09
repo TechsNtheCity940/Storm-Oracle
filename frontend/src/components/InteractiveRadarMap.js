@@ -518,6 +518,14 @@ const InteractiveRadarMap = ({
     }
   }, [selectedStation, loadRadarFrames, frameCount]);
 
+  // Jump to selected station on map
+  useEffect(() => {
+    if (selectedStation && mapRef.current) {
+      const map = mapRef.current;
+      map.setView([selectedStation.latitude, selectedStation.longitude], 8);
+    }
+  }, [selectedStation]);
+
   const togglePlayback = () => {
     setIsPlaying(!isPlaying);
   };
