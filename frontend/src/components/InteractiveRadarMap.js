@@ -333,12 +333,13 @@ const InteractiveRadarMap = ({
   stormCells = [],
   onStormClick 
 }) => {
+  // Radar state with optimized settings for smooth animation
   const [radarFrames, setRadarFrames] = useState([]);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [frameCount, setFrameCount] = useState(100);
-  const [playbackSpeed, setPlaybackSpeed] = useState(500); // ms per frame
-  const [radarOpacity, setRadarOpacity] = useState(0.7);
+  const [frameCount, setFrameCount] = useState(60); // Reduced to 60 frames for smoother loading
+  const [playbackSpeed, setPlaybackSpeed] = useState(100); // Faster playback (100ms = 10fps) for smooth motion
+  const [radarOpacity, setRadarOpacity] = useState(0.8);
   // Map center and zoom - default to national view
   const [mapCenter, setMapCenter] = useState([39.0, -98.0]); // Center of US
   const [mapZoom, setMapZoom] = useState(4); // Zoom level to show entire US
