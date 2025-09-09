@@ -349,7 +349,7 @@ def get_subscription_limits(user_type: str) -> dict:
             "priority_support": True,
         }
     
-    if user_type == UserType.PREMIUM:
+    if user_type == UserType.PREMIUM or user_type == UserType.TRIAL:
         return {
             "max_frames": -1,  # Unlimited frames for premium
             "max_speed": -1,   # Unlimited speed
@@ -366,6 +366,7 @@ def get_subscription_limits(user_type: str) -> dict:
             "chatbot_access": True,          # AI chatbot for queries
             "priority_support": True,        # Priority customer support
             "export_data": True,             # Data export capabilities
+            "trial_access": user_type == UserType.TRIAL,  # Indicates trial user
         }
     
     # Enhanced FREE TIER limits - Updated as per user requirements
