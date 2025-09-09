@@ -453,8 +453,17 @@ class StormOracleAPITester:
         # Test alerts
         self.test_tornado_alerts()
         
-        # Test subscription system
+        # Test comprehensive subscription system
         self.test_subscription_system()
+        
+        # Test subscription features endpoint
+        self.test_subscription_features_endpoint()
+        
+        # Test free trial system
+        self.test_free_trial_system()
+        
+        # Test enhanced free tier features
+        self.test_enhanced_free_tier_features()
         
         # Test AI chat
         self.test_ai_chat()
