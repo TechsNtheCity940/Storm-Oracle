@@ -233,11 +233,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Update subscription pricing to $15/month for premium"
-    - "Implement enhanced free tier features"
-    - "Implement one-week free trial system"
-    - "Add subscription features endpoint"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
