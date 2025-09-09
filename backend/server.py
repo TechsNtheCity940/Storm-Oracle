@@ -85,21 +85,23 @@ class PaymentTransaction(BaseModel):
 PAYMENT_PACKAGES = {
     "premium_monthly": {
         "name": "Premium Monthly",
-        "amount": 19.99,
+        "amount": 9.99,  # Reduced from $19.99
         "currency": "usd",
         "subscription_type": "premium",
-        "billing_cycle": "monthly"
+        "billing_cycle": "monthly",
+        "trial_days": 7  # 1-week free trial
     },
     "premium_annual": {
         "name": "Premium Annual", 
-        "amount": 199.99,
+        "amount": 99.99,  # Reduced from $199.99 (17% discount)
         "currency": "usd",  
         "subscription_type": "premium",
-        "billing_cycle": "annual"
+        "billing_cycle": "annual",
+        "trial_days": 7  # 1-week free trial
     },
     "enterprise": {
         "name": "Enterprise Plan",
-        "amount": 499.99,
+        "amount": 199.99,  # Reduced from $499.99
         "currency": "usd",
         "subscription_type": "enterprise", 
         "billing_cycle": "monthly"
