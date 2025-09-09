@@ -479,7 +479,9 @@ const InteractiveRadarMap = ({
   selectedStation, 
   onStationSelect,
   stormCells = [],
-  onStormClick 
+  onStormClick,
+  tornadoData = [],
+  onTornadoClick
 }) => {
   // Radar state with optimized settings for smooth animation
   const [radarFrames, setRadarFrames] = useState([]);
