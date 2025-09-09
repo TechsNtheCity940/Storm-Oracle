@@ -348,7 +348,7 @@ const InteractiveRadarMap = ({
         try {
           // Create multiple frames for animation (simulating time progression)
           for (let i = 0; i < frames; i++) {
-            const frameTimestamp = Date.now() - (i * 5 * 60 * 1000); // 5 minutes apart
+            const frameTimestamp = Date.now() - (i * 60 * 1000); // 60 seconds apart (1 minute)
             const response = await axios.get(`${API}/radar-data/NATIONAL?data_type=${dataType}&timestamp=${frameTimestamp}`);
             
             const frame = {
