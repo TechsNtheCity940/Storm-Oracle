@@ -10,9 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { 
   Play, Pause, SkipBack, SkipForward, RotateCcw, MapPin, AlertTriangle, 
-  ChevronLeft, ChevronRight, Settings, Palette, Eye, EyeOff 
+  ChevronLeft, ChevronRight, Settings, Palette, Eye, EyeOff, Zap, Cloud 
 } from 'lucide-react';
 import axios from 'axios';
+import TornadoMarker from './TornadoMarker';
+import { LightningMarker, HailMarker, WindMarker, PrecipitationMarker, StormCellMarker } from './CustomStormMarkers';
+import FloatingInfoPanel from './FloatingInfoPanel';
+import TimelineScrubber from './TimelineScrubber';
+import './GameRadarTheme.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -236,6 +241,340 @@ const StormCellMarkers = ({ stormCells, onStormClick }) => {
   return null;
 };
 
+const TornadoMarkers = ({ tornadoData = [], onTornadoClick }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    // Clear existing tornado markers
+    map.eachLayer((layer) => {
+      if (layer.options && layer.options.isTornadoMarker) {
+        map.removeLayer(layer);
+      }
+    });
+
+    // Add tornado markers
+    tornadoData.forEach((tornado) => {
+      // Extract intensity from EF scale or severity
+      const intensity = tornado.ef_scale || tornado.severity || tornado.intensity || 
+                      (tornado.alert_type === 'warning' ? 3 : 1);
+      
+      const isConfirmed = tornado.confirmed || tornado.alert_type === 'warning' || 
+                         tornado.status === 'confirmed';
+
+      // Create custom HTML icon with rotating tornado
+      const icon = L.divIcon({
+        className: 'tornado-marker-container',
+        html: `
+          <div class="tornado-marker ${isConfirmed ? 'confirmed' : 'predicted'}" style="
+            --tornado-size: ${Math.max(20, Math.min(90, 20 + intensity * 15))}px;
+            --rotation-speed: ${Math.max(0.8, 3 - intensity * 0.4)}s;
+            --tornado-opacity: ${Math.min(1, 0.7 + intensity * 0.05)};
+          ">
+            <div class="tornado-icon">
+              <img 
+                src="/images/tornado-marker.png" 
+                alt="${isConfirmed ? 'Confirmed' : 'Predicted'} Tornado EF${intensity}"
+                class="tornado-image"
+              />
+            </div>
+            
+            <div class="intensity-badge">
+              EF${intensity}
+            </div>
+            
+            ${isConfirmed ? '<div class="danger-ring"></div>' : ''}
+            
+            <div class="status-dot ${isConfirmed ? 'confirmed-dot' : 'predicted-dot'}">
+            </div>
+          </div>
+        `,
+        iconSize: [Math.max(20, Math.min(90, 20 + intensity * 15)), Math.max(20, Math.min(90, 20 + intensity * 15))],
+        iconAnchor: [Math.max(10, Math.min(45, 10 + intensity * 7.5)), Math.max(10, Math.min(45, 10 + intensity * 7.5))]
+      });
+
+      const marker = L.marker([tornado.latitude || tornado.predicted_location?.lat, 
+                              tornado.longitude || tornado.predicted_location?.lng], { 
+        icon,
+        isTornadoMarker: true
+      }).addTo(map);
+
+      // Enhanced popup with tornado details
+      marker.bindPopup(`
+        <div class="tornado-popup" style="min-width: 250px;">
+          <div style="display: flex; align-items: center; margin-bottom: 12px;">
+            <div style="font-size: 24px; margin-right: 8px;">🌪️</div>
+            <div>
+              <h3 style="margin: 0; color: #1f2937; font-size: 16px;">
+                ${isConfirmed ? 'CONFIRMED' : 'PREDICTED'} TORNADO
+              </h3>
+              <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
+                EF${intensity} Scale • ${isConfirmed ? 'Active Warning' : 'Forecast Model'}
+              </div>
+            </div>
+          </div>
+          
+          <div style="background: ${isConfirmed ? '#fef2f2' : '#fffbeb'}; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid ${isConfirmed ? '#ef4444' : '#f59e0b'};">
+            <div style="font-weight: bold; color: ${isConfirmed ? '#dc2626' : '#d97706'}; margin-bottom: 4px;">
+              ${isConfirmed ? '⚠️ IMMEDIATE DANGER' : '🔔 WEATHER ALERT'}
+            </div>
+            <div style="font-size: 13px; color: #374151;">
+              ${tornado.message || tornado.description || 
+                (isConfirmed ? 'Tornado confirmed on radar. Take shelter immediately!' : 
+                'Tornado development possible. Monitor conditions closely.')}
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 13px;">
+            <div>
+              <strong style="color: #374151;">Confidence:</strong><br>
+              <span style="color: ${tornado.confidence > 80 ? '#dc2626' : tornado.confidence > 60 ? '#d97706' : '#059669'};">
+                ${Math.round(tornado.confidence || (isConfirmed ? 95 : 65))}%
+              </span>
+            </div>
+            <div>
+              <strong style="color: #374151;">Wind Speed:</strong><br>
+              <span style="color: #374151;">${tornado.wind_speed || (intensity * 40 + 65)} mph</span>
+            </div>
+            <div>
+              <strong style="color: #374151;">Path Width:</strong><br>
+              <span style="color: #374151;">${tornado.path_width || (intensity * 150 + 50)} yards</span>
+            </div>
+            <div>
+              <strong style="color: #374141;">Time:</strong><br>
+              <span style="color: #374151;">${tornado.timestamp ? new Date(tornado.timestamp).toLocaleTimeString() : 'Real-time'}</span>
+            </div>
+          </div>
+          
+          ${tornado.estimated_touchdown_time || tornado.eta ? `
+            <div style="background: #fef3c7; padding: 8px; border-radius: 6px; margin-bottom: 12px;">
+              <div style="font-weight: bold; color: #92400e; font-size: 13px;">
+                ⏰ ${isConfirmed ? 'Touchdown Time' : 'Estimated Arrival'}
+              </div>
+              <div style="color: #92400e; font-size: 12px;">
+                ${tornado.estimated_touchdown_time ? new Date(tornado.estimated_touchdown_time).toLocaleString() : tornado.eta}
+              </div>
+            </div>
+          ` : ''}
+          
+          <div style="text-align: center; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+            <button onclick="window.focusTornado('${tornado.id || Math.random()}')" style="
+              background: ${isConfirmed ? '#dc2626' : '#d97706'};
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 13px;
+              margin-right: 8px;
+            ">Focus on Map</button>
+            <button onclick="window.getTornadoDetails('${tornado.id || Math.random()}')" style="
+              background: #374151;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 13px;
+            ">More Details</button>
+          </div>
+        </div>
+      `);
+
+      marker.on('click', () => onTornadoClick && onTornadoClick(tornado));
+    });
+  }, [map, tornadoData, onTornadoClick]);
+
+  return null;
+};
+
+const CustomWeatherMarkers = ({ weatherMarkers, markersVisible, onMarkerHover, onMarkerLeave }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    // Clear existing custom weather markers
+    map.eachLayer((layer) => {
+      if (layer.options && layer.options.isCustomWeatherMarker) {
+        map.removeLayer(layer);
+      }
+    });
+
+    // Add lightning markers
+    if (markersVisible.lightning && weatherMarkers.lightning) {
+      weatherMarkers.lightning.forEach((lightning) => {
+        const icon = L.divIcon({
+          className: 'custom-weather-marker lightning-marker-container',
+          html: `
+            <div class="lightning-marker" style="
+              --lightning-size: ${16 + lightning.intensity * 6}px;
+              --flash-speed: ${Math.max(0.8, 2.5 - lightning.intensity * 0.3)}s;
+              --lightning-color: #fbbf24;
+              --lightning-opacity: ${0.8 + lightning.intensity * 0.04};
+            ">
+              <div class="lightning-icon">⚡</div>
+              ${lightning.strikeCount > 1 ? `<div class="strike-count">${lightning.strikeCount}</div>` : ''}
+              <div class="electrical-field"></div>
+            </div>
+          `,
+          iconSize: [16 + lightning.intensity * 6, 16 + lightning.intensity * 6],
+          iconAnchor: [8 + lightning.intensity * 3, 8 + lightning.intensity * 3]
+        });
+
+        const marker = L.marker([lightning.latitude, lightning.longitude], {
+          icon,
+          isCustomWeatherMarker: true
+        }).addTo(map);
+
+        marker.on('mouseover', (e) => {
+          onMarkerHover('lightning', lightning, { x: e.originalEvent.clientX, y: e.originalEvent.clientY });
+        });
+        marker.on('mouseout', onMarkerLeave);
+      });
+    }
+
+    // Add hail markers
+    if (markersVisible.hail && weatherMarkers.hail) {
+      weatherMarkers.hail.forEach((hail) => {
+        const icon = L.divIcon({
+          className: 'custom-weather-marker hail-marker-container',
+          html: `
+            <div class="hail-marker" style="
+              --hail-size: ${14 + hail.hailSize * 6}px;
+              --hail-color: #e5e7eb;
+              --hail-opacity: ${0.7 + hail.hailSize * 0.05};
+            ">
+              <div class="hail-icon">🧊</div>
+              <div class="hail-probability">${hail.probability}%</div>
+              <div class="size-indicator">${hail.hailSize}</div>
+              <div class="hail-impact-ring"></div>
+            </div>
+          `,
+          iconSize: [14 + hail.hailSize * 6, 14 + hail.hailSize * 6],
+          iconAnchor: [7 + hail.hailSize * 3, 7 + hail.hailSize * 3]
+        });
+
+        const marker = L.marker([hail.latitude, hail.longitude], {
+          icon,
+          isCustomWeatherMarker: true
+        }).addTo(map);
+
+        marker.on('mouseover', (e) => {
+          onMarkerHover('hail', hail, { x: e.originalEvent.clientX, y: e.originalEvent.clientY });
+        });
+        marker.on('mouseout', onMarkerLeave);
+      });
+    }
+
+    // Add wind markers
+    if (markersVisible.wind && weatherMarkers.wind) {
+      weatherMarkers.wind.forEach((wind) => {
+        const getWindColor = (speed) => {
+          if (speed >= 74) return '#dc2626';
+          if (speed >= 58) return '#ea580c';
+          if (speed >= 39) return '#f59e0b';
+          if (speed >= 25) return '#eab308';
+          return '#22c55e';
+        };
+
+        const icon = L.divIcon({
+          className: 'custom-weather-marker wind-marker-container',
+          html: `
+            <div class="wind-marker" style="
+              --wind-size: ${20 + Math.min(wind.windSpeed / 5, 16)}px;
+              --wind-color: ${getWindColor(wind.windSpeed)};
+              --wind-direction: ${wind.direction}deg;
+            ">
+              <div class="wind-arrow">
+                <div class="arrow-shaft"></div>
+                <div class="arrow-head"></div>
+              </div>
+              <div class="wind-speed">
+                ${wind.windSpeed}
+                ${wind.gustSpeed ? `<span class="gust">G${wind.gustSpeed}</span>` : ''}
+              </div>
+              <div class="wind-flow-lines">
+                <div class="flow-line line-1"></div>
+                <div class="flow-line line-2"></div>
+                <div class="flow-line line-3"></div>
+              </div>
+            </div>
+          `,
+          iconSize: [20 + Math.min(wind.windSpeed / 5, 16), 20 + Math.min(wind.windSpeed / 5, 16)],
+          iconAnchor: [10 + Math.min(wind.windSpeed / 10, 8), 10 + Math.min(wind.windSpeed / 10, 8)]
+        });
+
+        const marker = L.marker([wind.latitude, wind.longitude], {
+          icon,
+          isCustomWeatherMarker: true
+        }).addTo(map);
+
+        marker.on('mouseover', (e) => {
+          onMarkerHover('wind', wind, { x: e.originalEvent.clientX, y: e.originalEvent.clientY });
+        });
+        marker.on('mouseout', onMarkerLeave);
+      });
+    }
+
+    // Add precipitation markers
+    if (markersVisible.precipitation && weatherMarkers.precipitation) {
+      weatherMarkers.precipitation.forEach((precip) => {
+        const getPrecipColor = (type) => {
+          const colors = {
+            rain: '#3b82f6',
+            snow: '#e5e7eb',
+            sleet: '#94a3b8',
+            freezing_rain: '#06b6d4'
+          };
+          return colors[type] || '#3b82f6';
+        };
+
+        const getPrecipIcon = (type) => {
+          const icons = {
+            rain: '🌧️',
+            snow: '❄️',
+            sleet: '🌨️',
+            freezing_rain: '🧊'
+          };
+          return icons[type] || '🌧️';
+        };
+
+        const icon = L.divIcon({
+          className: 'custom-weather-marker precipitation-marker-container',
+          html: `
+            <div class="precipitation-marker" style="
+              --precip-size: ${18 + precip.intensity * 4}px;
+              --precip-color: ${getPrecipColor(precip.precipType)};
+            ">
+              <div class="precip-icon">${getPrecipIcon(precip.precipType)}</div>
+              <div class="precip-intensity">${precip.intensity_name}</div>
+              ${precip.accumulation > 0 ? `<div class="accumulation">${precip.accumulation}"</div>` : ''}
+              <div class="precip-animation">
+                <div class="drop drop-1"></div>
+                <div class="drop drop-2"></div>
+                <div class="drop drop-3"></div>
+              </div>
+            </div>
+          `,
+          iconSize: [18 + precip.intensity * 4, 18 + precip.intensity * 4],
+          iconAnchor: [9 + precip.intensity * 2, 9 + precip.intensity * 2]
+        });
+
+        const marker = L.marker([precip.latitude, precip.longitude], {
+          icon,
+          isCustomWeatherMarker: true
+        }).addTo(map);
+
+        marker.on('mouseover', (e) => {
+          onMarkerHover('precipitation', precip, { x: e.originalEvent.clientX, y: e.originalEvent.clientY });
+        });
+        marker.on('mouseout', onMarkerLeave);
+      });
+    }
+  }, [map, weatherMarkers, markersVisible, onMarkerHover, onMarkerLeave]);
+
+  return null;
+};
+
 const RadarStationMarkers = ({ radarStations, onStationClick, selectedStation }) => {
   const map = useMap();
 
@@ -331,7 +670,9 @@ const InteractiveRadarMap = ({
   selectedStation, 
   onStationSelect,
   stormCells = [],
-  onStormClick 
+  onStormClick,
+  tornadoData = [],
+  onTornadoClick
 }) => {
   // Radar state with optimized settings for smooth animation
   const [radarFrames, setRadarFrames] = useState([]);
@@ -350,6 +691,90 @@ const InteractiveRadarMap = ({
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [realRadarData, setRealRadarData] = useState(null);
+  
+  // Gaming/Tech UI enhancements
+  const [is3DMode, setIs3DMode] = useState(false);
+  const [floatingPanel, setFloatingPanel] = useState({
+    visible: false,
+    position: { x: 0, y: 0 },
+    data: null,
+    type: 'default'
+  });
+  const [customMarkersVisible, setCustomMarkersVisible] = useState({
+    lightning: true,
+    hail: true,
+    wind: true,
+    precipitation: true,
+    stormCells: true
+  });
+  
+  // Sample weather marker data (in real app, this would come from API)
+  const [weatherMarkers, setWeatherMarkers] = useState({
+    lightning: [
+      {
+        id: 'lightning_1',
+        latitude: 35.2271,
+        longitude: -97.5186,
+        intensity: 3,
+        strikeCount: 15,
+        strikes_per_minute: 8,
+        strike_type: 'Cloud-to-Ground',
+        polarity: 'Negative',
+        current: 45
+      },
+      {
+        id: 'lightning_2',
+        latitude: 32.7767,
+        longitude: -96.7970,
+        intensity: 2,
+        strikeCount: 8,
+        strikes_per_minute: 12,
+        strike_type: 'Intracloud',
+        polarity: 'Positive',
+        current: 25
+      }
+    ],
+    hail: [
+      {
+        id: 'hail_1',
+        latitude: 39.7391,
+        longitude: -104.9847,
+        hailSize: 3,
+        probability: 85,
+        diameter: 1.75,
+        size_name: 'Golf Ball',
+        duration: 8,
+        accumulation: 'Heavy'
+      }
+    ],
+    wind: [
+      {
+        id: 'wind_1',
+        latitude: 41.8781,
+        longitude: -87.6298,
+        windSpeed: 65,
+        direction: 270,
+        gustSpeed: 85,
+        strength_category: 'Severe',
+        direction_name: 'W',
+        shear: 'High'
+      }
+    ],
+    precipitation: [
+      {
+        id: 'precip_1',
+        latitude: 47.6062,
+        longitude: -122.3321,
+        precipType: 'rain',
+        intensity: 3,
+        intensity_name: 'Heavy',
+        rate: 0.75,
+        accumulation: 1.2,
+        duration: 45,
+        temperature: 58
+      }
+    ]
+  });
 
   const playbackRef = useRef(null);
   const mapRef = useRef(null);
@@ -586,11 +1011,31 @@ const InteractiveRadarMap = ({
       if (station) onStationSelect(station);
     };
 
+    window.focusTornado = (tornadoId) => {
+      const tornado = tornadoData.find(t => t.id === tornadoId);
+      if (tornado && mapRef.current) {
+        const lat = tornado.latitude || tornado.predicted_location?.lat;
+        const lng = tornado.longitude || tornado.predicted_location?.lng;
+        if (lat && lng) {
+          mapRef.current.setView([lat, lng], 10);
+        }
+      }
+    };
+
+    window.getTornadoDetails = (tornadoId) => {
+      const tornado = tornadoData.find(t => t.id === tornadoId);
+      if (tornado && onTornadoClick) {
+        onTornadoClick(tornado);
+      }
+    };
+
     return () => {
       delete window.jumpToStorm;
       delete window.selectRadarStation;
+      delete window.focusTornado;
+      delete window.getTornadoDetails;
     };
-  }, [stormCells, radarStations, onStationSelect]);
+  }, [stormCells, radarStations, onStationSelect, tornadoData, onTornadoClick]);
 
   const MapEventHandler = () => {
     useMapEvents({
@@ -613,8 +1058,8 @@ const InteractiveRadarMap = ({
       ref={mapContainerRef}
       className={`relative w-full h-full ${isFullscreen ? 'fixed inset-0 z-[9999] bg-black' : ''}`}
     >
-      {/* Scrollable Collapsible Radar Controls */}
-      <Card className={`absolute top-4 left-4 z-[1000] bg-slate-800/95 border-slate-700 backdrop-blur-sm transition-all duration-300 ${controlsCollapsed ? 'w-12' : 'w-80'} ${isFullscreen ? 'max-h-[calc(100vh-2rem)] h-auto' : 'max-h-[calc(100vh-8rem)] h-auto'}`}>
+      {/* Gaming-Tech Enhanced Radar Control Center */}
+      <Card className={`game-control-panel absolute top-4 left-4 z-[1000] transition-all duration-300 ${controlsCollapsed ? 'w-12' : 'w-80'} ${isFullscreen ? 'max-h-[calc(100vh-2rem)] h-auto' : 'max-h-[calc(100vh-8rem)] h-auto'}`}>
         <CardHeader className="pb-3 flex-shrink-0">
           <CardTitle className="text-white text-sm flex items-center justify-between">
             {!controlsCollapsed && (
@@ -670,49 +1115,60 @@ const InteractiveRadarMap = ({
               )}
 
               {/* Playback Controls */}
+              {/* Enhanced Timeline Scrubber */}
               <div className="space-y-2">
-                <label className="text-xs text-slate-400 font-medium">Animation Controls</label>
+                <label className="text-xs text-slate-400 font-medium flex items-center">
+                  <Zap className="h-3 w-3 mr-1" />
+                  Timeline Control Center
+                </label>
+                <TimelineScrubber
+                  totalFrames={radarFrames.length}
+                  currentFrame={currentFrame}
+                  onFrameChange={goToFrame}
+                  isPlaying={isPlaying}
+                  onPlayPause={togglePlayback}
+                  playbackSpeed={1000/playbackSpeed}
+                  onSpeedChange={(speed) => setPlaybackSpeed(1000/speed)}
+                  frameData={radarFrames}
+                />
+              </div>
+
+              {/* Quick Animation Controls */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium">Quick Controls</label>
                 <div className="flex items-center space-x-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
                     onClick={() => goToFrame(0)}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="holo-button flex items-center gap-1 px-3 py-1 text-xs"
                     title="Go to First Frame"
                   >
                     <SkipBack className="h-3 w-3" />
-                  </Button>
+                  </button>
                   
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
                     onClick={togglePlayback}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="holo-button flex items-center gap-1 px-3 py-1 text-xs"
                     title={isPlaying ? "Pause Animation" : "Play Animation"}
                   >
                     {isPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                  </Button>
+                  </button>
                   
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
                     onClick={() => goToFrame(radarFrames.length - 1)}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="holo-button flex items-center gap-1 px-3 py-1 text-xs"
                     title="Go to Latest Frame"
                   >
                     <SkipForward className="h-3 w-3" />
-                  </Button>
+                  </button>
                   
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
                     onClick={() => loadRadarFrames(selectedStation?.station_id)}
                     disabled={isLoading}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="holo-button flex items-center gap-1 px-3 py-1 text-xs"
                     title="Refresh Radar Data"
                   >
                     <RotateCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-                  </Button>
+                  </button>
                 </div>
               </div>
 
@@ -793,17 +1249,59 @@ const InteractiveRadarMap = ({
                 </div>
               )}
 
+              {/* 3D Mode Toggle */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium flex items-center">
+                  <Cloud className="h-3 w-3 mr-1" />
+                  Display Mode
+                </label>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-300">3D Radar View</span>
+                  <div 
+                    className={`toggle-3d ${is3DMode ? 'active' : ''}`}
+                    onClick={() => setIs3DMode(!is3DMode)}
+                  >
+                    <div className="toggle-3d-thumb"></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Weather Markers Control */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium flex items-center">
+                  <Zap className="h-3 w-3 mr-1" />
+                  Weather Markers
+                </label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {Object.entries(customMarkersVisible).map(([key, visible]) => (
+                    <button
+                      key={key}
+                      onClick={() => setCustomMarkersVisible(prev => ({
+                        ...prev,
+                        [key]: !visible
+                      }))}
+                      className={`holo-button px-2 py-1 text-xs capitalize ${visible ? 'active' : ''}`}
+                    >
+                      {key === 'lightning' && '⚡'}
+                      {key === 'hail' && '🧊'}
+                      {key === 'wind' && '💨'}
+                      {key === 'precipitation' && '🌧️'}
+                      {key === 'stormCells' && '⛈️'}
+                      {key.replace(/([A-Z])/g, ' $1').toLowerCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Advanced Settings Toggle */}
-              <Button
-                size="sm"
-                variant="outline"
+              <button
                 onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                className="w-full border-slate-600 text-white hover:bg-slate-700"
+                className="holo-button w-full flex items-center justify-center gap-2"
               >
-                <Settings className="h-3 w-3 mr-2" />
+                <Settings className="h-3 w-3" />
                 Advanced Settings
-                <ChevronRight className={`h-3 w-3 ml-auto transition-transform ${showAdvancedSettings ? 'rotate-90' : ''}`} />
-              </Button>
+                <ChevronRight className={`h-3 w-3 transition-transform ${showAdvancedSettings ? 'rotate-90' : ''}`} />
+              </button>
 
               {/* Advanced Settings Panel */}
               {showAdvancedSettings && (
@@ -914,34 +1412,56 @@ const InteractiveRadarMap = ({
         {isFullscreen ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
       </Button>
 
-      {/* Map Status */}
-      <div className="absolute bottom-4 left-20 z-[1000] bg-slate-800/95 backdrop-blur-sm rounded px-3 py-2">
-        <div className="text-white text-xs space-y-1">
-          <div>Center: {mapCenter[0].toFixed(4)}°, {mapCenter[1].toFixed(4)}°</div>
-          <div>Zoom: {mapZoom}</div>
-          <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-            <span>{isLoading ? 'Loading radar...' : 'Radar data live'}</span>
+      {/* Enhanced Map Status with Gaming Theme */}
+      <div className="game-control-panel absolute bottom-4 left-20 z-[1000]">
+        <div className="p-3">
+          <div className="text-white text-xs space-y-1">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-3 w-3 text-blue-400" />
+              <span>{mapCenter[0].toFixed(4)}°, {mapCenter[1].toFixed(4)}°</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="text-slate-400">Zoom:</div>
+              <div className="text-blue-400">{mapZoom}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="status-indicator">
+                <div className={`status-dot ${isLoading ? 'warning' : 'active'}`}></div>
+                <span>{isLoading ? 'Loading...' : 'Live'}</span>
+              </div>
+            </div>
+            {is3DMode && (
+              <div className="flex items-center gap-2">
+                <Cloud className="h-3 w-3 text-purple-400" />
+                <span className="text-purple-400">3D Mode Active</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Interactive Map with Fullscreen Support */}
-      <MapContainer
-        center={mapCenter}
-        zoom={mapZoom}
-        style={{ 
-          height: isFullscreen ? '100vh' : '100%', 
-          width: '100%',
-          position: isFullscreen ? 'fixed' : 'relative',
-          top: isFullscreen ? 0 : 'auto',
-          left: isFullscreen ? 0 : 'auto',
-          zIndex: isFullscreen ? 9998 : 'auto'
-        }}
-        ref={mapRef}
-        className="radar-map"
-        zoomControl={false}  // Disable default zoom control to add custom positioned one
-      >
+      {/* Floating Info Panel */}
+      <FloatingInfoPanel
+        position={floatingPanel.position}
+        data={floatingPanel.data}
+        visible={floatingPanel.visible}
+        type={floatingPanel.type}
+      />
+
+      {/* Gaming-Tech Enhanced Interactive Map */}
+      <div className={`radar-map-container ${isFullscreen ? 'fixed inset-0 z-[9998]' : ''}`}>
+        <MapContainer
+          center={mapCenter}
+          zoom={mapZoom}
+          style={{ 
+            height: isFullscreen ? '100vh' : '100%', 
+            width: '100%',
+            position: 'relative'
+          }}
+          ref={mapRef}
+          className="radar-map"
+          zoomControl={false}  // Disable default zoom control to add custom positioned one
+        >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -969,7 +1489,29 @@ const InteractiveRadarMap = ({
           onStationClick={onStationSelect}
           selectedStation={selectedStation}
         />
-      </MapContainer>
+        
+        <TornadoMarkers 
+          tornadoData={tornadoData}
+          onTornadoClick={onTornadoClick}
+        />
+        
+        <CustomWeatherMarkers 
+          weatherMarkers={weatherMarkers}
+          markersVisible={customMarkersVisible}
+          onMarkerHover={(type, data, position) => {
+            setFloatingPanel({
+              visible: true,
+              position,
+              data,
+              type
+            });
+          }}
+          onMarkerLeave={() => {
+            setFloatingPanel(prev => ({ ...prev, visible: false }));
+          }}
+        />
+        </MapContainer>
+      </div>
 
       {/* Enhanced CSS for radar visualization, scrolling, and fullscreen */}
       <style jsx global>{`
@@ -1102,6 +1644,159 @@ const InteractiveRadarMap = ({
         
         .data-live-indicator {
           animation: dataLive 2s infinite;
+        }
+        
+        /* Tornado Marker Animations and Styles */
+        .tornado-marker {
+          position: relative;
+          width: var(--tornado-size, 40px);
+          height: var(--tornado-size, 40px);
+          cursor: pointer;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: transform 0.3s ease, filter 0.3s ease;
+        }
+
+        .tornado-marker:hover {
+          transform: scale(1.2);
+          filter: brightness(1.2) drop-shadow(0 0 15px rgba(255, 255, 255, 0.6));
+        }
+
+        .tornado-icon {
+          width: 100%;
+          height: 100%;
+          position: relative;
+          animation: tornadoSpin var(--rotation-speed, 2s) linear infinite;
+          opacity: var(--tornado-opacity, 0.8);
+        }
+
+        .tornado-image {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+        }
+
+        @keyframes tornadoSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        .intensity-badge {
+          position: absolute;
+          top: -8px;
+          right: -8px;
+          background: linear-gradient(135deg, #ff4444, #cc0000);
+          color: white;
+          font-size: 10px;
+          font-weight: bold;
+          padding: 2px 6px;
+          border-radius: 12px;
+          border: 2px solid white;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+          z-index: 1001;
+          animation: intensityPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes intensityPulse {
+          0%, 100% {
+            transform: scale(1);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+          }
+          50% {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(255, 68, 68, 0.6);
+          }
+        }
+
+        .status-dot {
+          position: absolute;
+          bottom: -6px;
+          right: -6px;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          border: 2px solid white;
+          z-index: 1001;
+        }
+
+        .predicted-dot {
+          background: linear-gradient(135deg, #ffd700, #ffaa00);
+          animation: predictedPulse 1.5s ease-in-out infinite;
+        }
+
+        .confirmed-dot {
+          background: linear-gradient(135deg, #ff0000, #cc0000);
+          animation: confirmedPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes predictedPulse {
+          0%, 100% { opacity: 0.7; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        @keyframes confirmedPulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.3); }
+        }
+
+        .danger-ring {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: calc(var(--tornado-size, 40px) * 2);
+          height: calc(var(--tornado-size, 40px) * 2);
+          border: 3px solid #ff0000;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          animation: dangerRing 2s ease-in-out infinite;
+          z-index: 999;
+        }
+
+        @keyframes dangerRing {
+          0% {
+            opacity: 0.8;
+            transform: translate(-50%, -50%) scale(0.8);
+          }
+          50% {
+            opacity: 0.4;
+            transform: translate(-50%, -50%) scale(1.2);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(1.5);
+          }
+        }
+
+        .tornado-marker.confirmed {
+          filter: brightness(1.1) saturate(1.2);
+        }
+
+        .tornado-marker.confirmed .tornado-icon {
+          animation-duration: calc(var(--rotation-speed, 2s) * 0.7);
+        }
+
+        .tornado-marker.confirmed:hover {
+          filter: brightness(1.3) saturate(1.3) drop-shadow(0 0 20px rgba(255, 0, 0, 0.8));
+        }
+
+        .tornado-marker.predicted {
+          filter: brightness(0.9) saturate(0.9);
+        }
+
+        .tornado-marker.predicted .tornado-icon {
+          opacity: 0.75;
+        }
+
+        .tornado-marker.predicted:hover {
+          filter: brightness(1.1) saturate(1.1) drop-shadow(0 0 15px rgba(255, 215, 0, 0.8));
+        }
+
+        .tornado-popup {
+          max-width: 320px;
+          font-family: system-ui, -apple-system, sans-serif;
         }
       `}</style>
     </div>

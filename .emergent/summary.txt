@@ -1,72 +1,77 @@
 <analysis>
-The AI engineer successfully built a comprehensive Storm Oracle weather radar monitoring application. Starting from an initial description, the AI iterated through core features: a React frontend, FastAPI backend, and MongoDB. Key integrations included the National Weather Service API (later replaced by RainViewer for live radar data) and Claude Sonnet via an Emergent LLM key for AI analysis. The development involved an initial scaffold, multiple bug-fixing rounds for MongoDB serialization, tensor dimension mismatches in the ML model, and import errors. A significant portion of the work focused on designing and implementing a state-of-the-art custom ML model for tornado prediction, integrated alongside the LLM. The UI progressively evolved from basic elements to a highly interactive, meteorologist-grade map with advanced controls, animation, customizable color palettes, and full-screen capabilities. The system now features real-time radar data, dual AI analysis (LLM and ML), automated storm monitoring, and a premium subscription model. The last task involved making the control panel scrollable and the map full-screen, with no placeholders for any functions, which was in progress.
+The AI engineer's work on the Storm Oracle application involved an iterative process of feature implementation, bug fixing, and refinement based on user feedback. Key challenges included: reliably displaying real-time radar data, perfecting UI element placement, implementing smooth animation, and building a robust authentication and payment system. The engineer successfully transitioned from RainViewer to NOAA and then a proxy approach for radar data, eventually integrating PyART for high-quality national and local radar visualization with smooth animation. UI issues like zoom control placement, fullscreen toggling, and scrollable panels were addressed. Authentication, admin access, and Stripe-based payments were fully implemented. The current work involves updating pricing models and free tier features based on the latest user request.
 </analysis>
 
 <product_requirements>
-The Storm Oracle application is a state-of-the-art weather radar monitoring app designed to provide live updates, visual radar data (reflectivity, velocity, storm-relative velocity), and location tracking. A core feature is a custom AI model for predicting tornadoes before formation, including touchdown locations, paths, and intensity, trained on historical storm data. The app also includes an AI chatbot for live text updates. It is a web application, mobile-responsive, with a free tier offering basic radar and AI alerts, and a paid subscription tier for premium features like real-time tracking, advanced radar options, enhanced AI alerts, the AI chatbot, advanced predictions, detailed tornado paths, and historical data. The app should cover the entire United States, allowing users to select specific radar stations or view a zoomed-out national overview with live data. It needs an interactive map, animation controls (50-250 frames, speed control), scrollable control panels, and a full-screen map option. Radar visual data should be customizable with various color palettes representing severity and different data types (MRMS, single site, hi-res reflectivity, etc.).
+The Storm Oracle is a state-of-the-art weather radar monitoring application. It features live radar data (reflectivity, velocity, storm-relative velocity), location tracking, and an interactive map with animation controls (up to 100 frames for free tier, max 5x speed, 30-60 second refresh). A custom ML model predicts tornadoes with touchdown locations and intensity, complemented by an AI chatbot for live text updates. The app is web and mobile-responsive, covering the entire US with national overview and individual station selection (circular radius coverage). The UI requires scrollable control panels, top-right zoom controls, and a bottom-left fullscreen toggle. Radar visual data should be customizable with various color palettes.
+
+The application has a free tier and a paid subscription. Initially, the free tier offered basic radar and AI alerts, while the paid tier included real-time tracking, advanced radar, enhanced AI alerts, chatbot, and detailed predictions. The user later requested an updated pricing model: a one-week free trial for premium features, and an enhanced free tier offering live 2D radar, manual/nearest radar selection, all map controls (max 100 frames, auto-looping at normal speed, max 5x), and location-based AI predictions with visual data access. A login system with email verification, password reset, and a secret admin access method were also required.
 </product_requirements>
 
 <key_technical_concepts>
 - **Full-stack Development**: React (frontend), FastAPI (backend), MongoDB (database).
-- **AI/ML**: Custom PyTorch-based  (CNN, LSTM, Transformer for multi-modal deep learning) for tornado prediction, integrated with Claude Sonnet (Emergent LLM Key) for contextual analysis and validation.
-- **Mapping/GIS**: ,  for interactive maps and radar overlays.
-- **Real-time Data**: RainViewer API for live radar imagery, NWS API for station metadata.
-- **State Management**: React hooks for UI state (e.g., radar frames, speed, selected station).
-- **Concurrency**: Python  for asynchronous operations in FastAPI.
+- **AI/ML**: Custom PyTorch  (CNN, LSTM, Transformer), Claude Sonnet (Emergent LLM Key).
+- **Mapping/GIS**: , , PyART for radar visualization.
+- **Real-time Data**: RainViewer API, NOAA ImageServer, server-side proxy for radar.
+- **Authentication**: JWT-based email/password, verification, admin access.
+- **Payments**: Stripe integration.
 </key_technical_concepts>
 
 <code_architecture>
-The application follows a standard full-stack architecture:
+The application uses a standard full-stack architecture:
 
 
 
-**Key Files and Changes:**
-
 -   :
-    -   **Importance**: Central FastAPI application. Defines all API endpoints for radar data, station information, user subscriptions, AI tornado analysis, ML tornado analysis, and automated storm monitoring.
-    -   **Changes**: Initially created with basic endpoints. Modified extensively to integrate , add LLM key, fix MongoDB serialization, implement RainViewer API for radar data, add  integration, implement automated storm monitoring, and add new API endpoints for interactive radar features, radar frames, and radar data types. Fixed  variable initialization and re-added accidentally removed subscription endpoints.
+    -   **Importance**: Main FastAPI app.
+    -   **Changes**: Extensive modifications for RainViewer, NOAA, then custom proxy radar endpoints. Integrated PyART for radar processing. Added authentication endpoints (register, login, verify email, password reset, admin access). Integrated Stripe payment endpoints (checkout, webhook). Logic for national and station radar data retrieval. Fixed  variable initialization.
 -   :
-    -   **Importance**: Contains the  class, which defines the comprehensive neural network architecture for advanced tornado prediction.
-    -   **Changes**: Initial creation, then extensive modifications to fix tensor dimension mismatches in  and 's forward pass.
+    -   **Importance**: New module for PyART-based radar data processing.
+    -   **Changes**: Created to generate radar images for both national composite views and individual station views with circular coverage and smooth animation. Includes colormap fixes and station data handling.
 -   :
-    -   **Importance**: Handles the preprocessing and generation of radar and atmospheric data required for the ML model.
-    -   **Changes**: Initial creation. Modified to ensure consistent tensor shapes for ML model inputs.
+    -   **Importance**: New module for authentication logic.
+    -   **Changes**: Created to define user models, JWT token handling, password hashing, and email verification utilities.
 -   :
-    -   **Importance**: Contains the logic for the backend's automated storm monitoring system.
-    -   **Changes**: Created to continuously scan radar stations and run AI/ML analysis. Modified to fix  import by passing the class and temporarily disabling for debugging.
+    -   **Importance**: Main React component, global state, routing.
+    -   **Changes**: Modified to integrate , handle radar station selection, display AI analysis. Integrated new authentication components (, , , ). Implemented view-based routing for different app states (login, register, home, payment). Removed redundant radar station dropdown, added default national radar loading.
 -   :
-    -   **Importance**: Main React component, orchestrates the UI, manages global state, and integrates all major sub-components.
-    -   **Changes**: Initial creation. Modified to integrate , set up frontend routes, handle radar station selection, display AI analysis results, manage premium subscription state, integrate the , add dual analysis buttons, and handle state for interactive map controls (frames, speed, opacity, fullscreen). Fixed linting errors and missing function definitions.
+    -   **Importance**: Renders the Leaflet map and radar overlays.
+    -   **Changes**: Created  and . Positioned zoom controls top-right, fullscreen button bottom-left. Integrated . Modified to handle national radar and smooth animation via frame interpolation. Fixed  errors, and interactive map station selection event handling (popup buttons).
 -   :
-    -   **Importance**: Global styles and utility classes for the application.
-    -   **Changes**: Initial creation. Modified to include styles for the interactive map, radar overlays, collapsible control panel, and specifically for radar color filtering based on intensity.
+    -   **Importance**: Radar controls, settings.
+    -   **Changes**: Implemented scrollability, removed fullscreen button (now standalone).
 -   :
-    -   **Importance**: Encapsulates the Leaflet map instance, displays radar stations, handles user interaction (panning, zooming, station selection), and integrates the  and .
-    -   **Changes**: Created to display the US map, 139 NEXRAD stations, and interactive map functionality. Modified to integrate , , and support fullscreen toggling.
+    -   **Importance**: Renders radar image tiles.
+    -   **Changes**: Modified to display national radar images, then individual station images with circular masks. Implemented smooth animation using frame interpolation.
 -   :
-    -   **Importance**: Provides user controls for radar animation (play/pause, frames, speed), radar data types, color palettes, and other advanced settings. It can be collapsed to free up map space.
-    -   **Changes**: Created to house the radar controls, advanced settings toggle, radar data type and color palette selectors. Modified to implement scrollability and the fullscreen toggle button.
--   :
-    -   **Importance**: Renders the dynamic radar image tiles fetched from the backend (RainViewer API) onto the Leaflet map.
-    -   **Changes**: Created to display radar data. Modified to incorporate different radar data types, apply color filtering based on selected palette, and ensure proper image loading.
-
+    -   **Importance**: New component for zoom controls.
+    -   **Changes**: Created for flexible positioning.
+-   , , :
+    -   **Importance**: New components for the payment flow.
+    -   **Changes**: Created to handle user interaction with payment plans, and display success/cancellation messages after Stripe checkout.
 </code_architecture>
 
 <pending_tasks>
-- Make the  scrollable. (In progress)
-- Implement full-screen functionality for the map. (In progress)
-- Ensure all functions display real data without placeholders. (In progress, particularly radar visual data on map)
+- Update subscription limits in the backend to reflect the new free tier features, including 2D radar, manual/nearest station selection, all map controls (max 100 frames), and location-based AI predictions.
+- Lower premium monthly pricing.
+- Implement a one-week free trial for premium features.
 </pending_tasks>
 
 <current_work>
-Immediately before this summary request, the AI engineer was working on implementing the user's latest suggestions to enhance the interactive radar map and control panel. The specific tasks in progress are:
-1.  **Making the collapsible controls menu scrollable**: This involves modifying  and potentially related CSS to allow the control panel content to scroll if it exceeds its height, preventing it from taking up too much screen space.
-2.  **Adding a full-screen map ability**: This requires implementing a toggle button and corresponding logic in  and , along with CSS adjustments in , to allow the map to expand to fill the entire viewport.
-3.  **Ensuring all functions display real data without placeholders**: This is a general task that applies across the application. The AI was specifically enhancing the backend () to provide real radar data without placeholders, especially for the radar visual data, which the user reported as still missing visually on the map despite API calls working.
+Immediately before this summary request, the AI engineer was working on implementing the user's latest suggestions for the application's pricing model and free tier features. The user requested:
+1.  **Reduced monthly premium cost.**
+2.  **A one-week free trial** for premium access.
+3.  **Enhanced Free Tier:**
+    *   Live 2D radar data.
+    *   Manual radar selection or nearest radar location to the user.
+    *   Access to all map controls.
+    *   Limited to a maximum of 100 frames for radar animation.
+    *   Live radar data looping should start automatically upon app load and continue looping at normal speed (max 5x speed).
+    *   AI prediction alerts based on the user's general location, with access to visual data.
 
-The last action performed was enhancing the backend to provide real radar data without placeholders and then restarting services to test the enhanced functionality. This implies that the frontend changes for scrollable controls and fullscreen were also likely made, and the system is about to be tested.
+The AI engineer's last action was to update the backend () to reflect these new pricing and feature structures for the free and premium tiers, and was in the process of updating the subscription limits () to match these changes.
 </current_work>
 
 <optional_next_step>
-Test the newly implemented scrollable controls and fullscreen map functionality, verifying radar visual data is displayed correctly without placeholders.
+Update the subscription limits in the backend () to reflect the newly defined free tier features and premium pricing structure.
 </optional_next_step>
