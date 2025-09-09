@@ -116,6 +116,149 @@ class StormOracleAPITester:
         return self.run_test(f"Get Radar Data for {station_id}", "GET", 
                            f"radar-data/{station_id}", params={"data_type": "reflectivity"})
 
+    def test_radar_data_comprehensive(self):
+        """Comprehensive radar data testing for visualization issue"""
+        print("\n🎯 COMPREHENSIVE RADAR DATA VISUALIZATION TESTING")
+        print("=" * 60)
+        
+        # Test stations as specified in the review request
+        test_stations = ["KEAX", "KFWS", "KAMA"]
+        
+        # Test data types as specified in the review request
+        data_types = ["base_reflectivity", "hi_res_reflectivity", "base_velocity"]
+        
+        all_tests_passed = True
+        radar_url_tests = []
+        
+        for station_id in test_stations:
+            print(f"\n📡 Testing Station: {station_id}")
+            
+            for data_type in data_types:
+                print(f"\n   🔍 Testing data type: {data_type}")
+                
+                # Test 1: Basic API response
+                success, data = self.run_test(
+                    f"Radar Data API - {station_id} - {data_type}", 
+                    "GET", 
+                    f"radar-data/{station_id}", 
+                    params={"data_type": data_type}
+                )
+                
+                if not success:
+                    all_tests_passed = False
+                    continue
+                
+                # Test 2: Verify response structure
+                required_fields = ["radar_url", "station_id", "data_type", "timestamp", "coordinates"]
+                missing_fields = [field for field in required_fields if field not in data]
+                
+                if missing_fields:
+                    print(f"   ❌ Missing required fields: {missing_fields}")
+                    self.log_test(f"Response Structure - {station_id} - {data_type}", False, 
+                                f"Missing fields: {missing_fields}")
+                    all_tests_passed = False
+                else:
+                    print(f"   ✅ Response structure valid")
+                    self.log_test(f"Response Structure - {station_id} - {data_type}", True)
+                
+                # Test 3: Verify radar URL accessibility
+                if "radar_url" in data and data["radar_url"]:
+                    radar_url = data["radar_url"]
+                    print(f"   🌐 Testing radar URL accessibility: {radar_url[:50]}...")
+                    
+                    try:
+                        import requests
+                        response = requests.head(radar_url, timeout=10)
+                        url_accessible = response.status_code == 200
+                        
+                        if url_accessible:
+                            print(f"   ✅ Radar URL accessible (Status: {response.status_code})")
+                            
+                            # Check if it's actually an image
+                            content_type = response.headers.get('content-type', '')
+                            if 'image' in content_type.lower() or radar_url.endswith(('.gif', '.png', '.jpg', '.jpeg')):
+                                print(f"   ✅ URL returns image content ({content_type})")
+                                self.log_test(f"Radar URL Accessibility - {station_id} - {data_type}", True)
+                            else:
+                                print(f"   ⚠️  URL accessible but may not be image ({content_type})")
+                                self.log_test(f"Radar URL Accessibility - {station_id} - {data_type}", True, 
+                                            f"Non-image content type: {content_type}")
+                        else:
+                            print(f"   ❌ Radar URL not accessible (Status: {response.status_code})")
+                            self.log_test(f"Radar URL Accessibility - {station_id} - {data_type}", False, 
+                                        f"HTTP {response.status_code}")
+                            all_tests_passed = False
+                            
+                    except Exception as e:
+                        print(f"   ❌ Error testing radar URL: {str(e)}")
+                        self.log_test(f"Radar URL Accessibility - {station_id} - {data_type}", False, str(e))
+                        all_tests_passed = False
+                    
+                    radar_url_tests.append({
+                        "station": station_id,
+                        "data_type": data_type,
+                        "url": radar_url,
+                        "accessible": url_accessible if 'url_accessible' in locals() else False
+                    })
+                else:
+                    print(f"   ❌ No radar_url in response")
+                    self.log_test(f"Radar URL Present - {station_id} - {data_type}", False, "No radar_url field")
+                    all_tests_passed = False
+                
+                # Test 4: Test with timestamp parameter
+                current_timestamp = int(time.time() * 1000)  # JavaScript timestamp
+                success_ts, data_ts = self.run_test(
+                    f"Radar Data with Timestamp - {station_id} - {data_type}", 
+                    "GET", 
+                    f"radar-data/{station_id}", 
+                    params={"data_type": data_type, "timestamp": current_timestamp}
+                )
+                
+                if success_ts and data_ts:
+                    if "radar_url" in data_ts and data_ts["radar_url"] != data.get("radar_url"):
+                        print(f"   ✅ Timestamp parameter affects URL generation")
+                    else:
+                        print(f"   ℹ️  Timestamp parameter may not affect URL (or same result)")
+                
+                # Test 5: Response time check
+                start_time = time.time()
+                try:
+                    response = requests.get(f"{self.api_url}/radar-data/{station_id}", 
+                                          params={"data_type": data_type}, timeout=30)
+                    response_time = time.time() - start_time
+                    
+                    if response_time < 5.0:
+                        print(f"   ✅ Good response time: {response_time:.2f}s")
+                        self.log_test(f"Response Time - {station_id} - {data_type}", True, 
+                                    f"{response_time:.2f}s")
+                    else:
+                        print(f"   ⚠️  Slow response time: {response_time:.2f}s")
+                        self.log_test(f"Response Time - {station_id} - {data_type}", True, 
+                                    f"Slow: {response_time:.2f}s")
+                        
+                except Exception as e:
+                    print(f"   ❌ Response time test failed: {str(e)}")
+                    self.log_test(f"Response Time - {station_id} - {data_type}", False, str(e))
+        
+        # Summary of radar URL tests
+        print(f"\n📊 RADAR URL ACCESSIBILITY SUMMARY")
+        print("=" * 40)
+        accessible_count = sum(1 for test in radar_url_tests if test.get('accessible', False))
+        total_count = len(radar_url_tests)
+        
+        print(f"Total URLs tested: {total_count}")
+        print(f"Accessible URLs: {accessible_count}")
+        print(f"Success rate: {(accessible_count/total_count*100):.1f}%" if total_count > 0 else "No URLs tested")
+        
+        if accessible_count == 0:
+            print("🚨 CRITICAL: NO RADAR URLS ARE ACCESSIBLE - This explains why no visual radar data appears!")
+        elif accessible_count < total_count:
+            print(f"⚠️  WARNING: {total_count - accessible_count} radar URLs are not accessible")
+        else:
+            print("✅ All radar URLs are accessible")
+        
+        return all_tests_passed
+
     def test_tornado_analysis(self, station_id="KEAX"):
         """Test AI tornado analysis endpoint (CRITICAL FEATURE)"""
         print(f"\n🎯 CRITICAL TEST: AI Tornado Analysis for {station_id}")
