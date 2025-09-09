@@ -76,7 +76,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-const RadarOverlay = ({ radarFrames, currentFrame, opacity }) => {
+const RadarOverlay = ({ radarFrames, currentFrame, opacity, colorPalette, dataType }) => {
   const map = useMap();
   const overlayRef = useRef(null);
 
@@ -89,16 +89,19 @@ const RadarOverlay = ({ radarFrames, currentFrame, opacity }) => {
 
       const frame = radarFrames[currentFrame];
       if (frame && frame.imageUrl) {
-        // Create image overlay
+        // Create image overlay with color filter
         const imageBounds = [
           [frame.bounds.south, frame.bounds.west],
           [frame.bounds.north, frame.bounds.east]
         ];
 
+        // Apply color filter based on palette and data type
+        const filterClass = `radar-${dataType}-${colorPalette}`;
+
         overlayRef.current = L.imageOverlay(frame.imageUrl, imageBounds, {
           opacity: opacity,
           interactive: false,
-          className: 'radar-overlay'
+          className: `radar-overlay ${filterClass}`
         }).addTo(map);
       }
     }
@@ -108,7 +111,7 @@ const RadarOverlay = ({ radarFrames, currentFrame, opacity }) => {
         map.removeLayer(overlayRef.current);
       }
     };
-  }, [map, radarFrames, currentFrame, opacity]);
+  }, [map, radarFrames, currentFrame, opacity, colorPalette, dataType]);
 
   return null;
 };
