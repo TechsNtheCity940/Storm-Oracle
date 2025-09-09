@@ -790,7 +790,7 @@ const InteractiveRadarMap = ({
                       <div>Update Interval: {realRadarData?.refresh_interval || 300}s</div>
                       {realRadarData?.coordinates && (
                         <div>
-                          Radar Center: {realRadarData.coordinates.lat.toFixed(4)}°, {realRadarData.coordinates.lon.toFixed(4)}°
+                          Radar Center: {realRadarData.coordinates.lat?.toFixed(4) || 'N/A'}°, {realRadarData.coordinates.lon?.toFixed(4) || 'N/A'}°
                         </div>
                       )}
                     </div>
