@@ -1249,17 +1249,59 @@ const InteractiveRadarMap = ({
                 </div>
               )}
 
+              {/* 3D Mode Toggle */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium flex items-center">
+                  <Cloud className="h-3 w-3 mr-1" />
+                  Display Mode
+                </label>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-300">3D Radar View</span>
+                  <div 
+                    className={`toggle-3d ${is3DMode ? 'active' : ''}`}
+                    onClick={() => setIs3DMode(!is3DMode)}
+                  >
+                    <div className="toggle-3d-thumb"></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Weather Markers Control */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium flex items-center">
+                  <Zap className="h-3 w-3 mr-1" />
+                  Weather Markers
+                </label>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {Object.entries(customMarkersVisible).map(([key, visible]) => (
+                    <button
+                      key={key}
+                      onClick={() => setCustomMarkersVisible(prev => ({
+                        ...prev,
+                        [key]: !visible
+                      }))}
+                      className={`holo-button px-2 py-1 text-xs capitalize ${visible ? 'active' : ''}`}
+                    >
+                      {key === 'lightning' && '⚡'}
+                      {key === 'hail' && '🧊'}
+                      {key === 'wind' && '💨'}
+                      {key === 'precipitation' && '🌧️'}
+                      {key === 'stormCells' && '⛈️'}
+                      {key.replace(/([A-Z])/g, ' $1').toLowerCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Advanced Settings Toggle */}
-              <Button
-                size="sm"
-                variant="outline"
+              <button
                 onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                className="w-full border-slate-600 text-white hover:bg-slate-700"
+                className="holo-button w-full flex items-center justify-center gap-2"
               >
-                <Settings className="h-3 w-3 mr-2" />
+                <Settings className="h-3 w-3" />
                 Advanced Settings
-                <ChevronRight className={`h-3 w-3 ml-auto transition-transform ${showAdvancedSettings ? 'rotate-90' : ''}`} />
-              </Button>
+                <ChevronRight className={`h-3 w-3 transition-transform ${showAdvancedSettings ? 'rotate-90' : ''}`} />
+              </button>
 
               {/* Advanced Settings Panel */}
               {showAdvancedSettings && (
