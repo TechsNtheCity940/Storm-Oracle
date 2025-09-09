@@ -653,6 +653,156 @@ async def chat_with_ai(message: str, user_id: str = "user", context: Optional[Di
         logger.error(f"Error in chat: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
 
+@api_router.get("/active-storms")
+async def get_active_storms():
+    """🌪️ Get all currently active storm cells with tornado predictions"""
+    try:
+        if storm_monitor:
+            active_storms = storm_monitor.get_active_storms()
+            monitoring_status = storm_monitor.get_monitoring_status()
+            
+            return {
+                "active_storms": active_storms,
+                "monitoring_status": monitoring_status,
+                "total_active_storms": len(active_storms),
+                "high_threat_count": len([s for s in active_storms if s['tornadoProbability'] > 50]),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        else:
+            return {
+                "active_storms": [],
+                "monitoring_status": {"monitoring_active": False},
+                "message": "Storm monitoring not initialized"
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting active storms: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get active storms: {str(e)}")
+
+@api_router.get("/radar-frames/{station_id}")
+async def get_radar_frames(station_id: str, frames: int = 100):
+    """📡 Get radar animation frames for a specific station"""
+    try:
+        # Validate frame count
+        frames = max(50, min(250, frames))
+        
+        # Get station info
+        station = await db.radar_stations.find_one({"station_id": station_id})
+        if not station:
+            raise HTTPException(status_code=404, detail="Station not found")
+        
+        # Generate radar frames (mock implementation for now)
+        radar_frames = []
+        base_time = datetime.now(timezone.utc)
+        
+        for i in range(frames):
+            frame_time = base_time - timedelta(minutes=i * 10)  # 10 minutes apart
+            timestamp = int(frame_time.timestamp())
+            
+            # Calculate tile coordinates for the station
+            lat, lng = station['latitude'], station['longitude']
+            zoom = 8
+            x_tile = int((lng + 180.0) / 360.0 * (1 << zoom))
+            y_tile = int((1.0 - math.log(math.tan(lat * math.pi / 180.0) + 1.0 / math.cos(lat * math.pi / 180.0)) / math.pi) / 2.0 * (1 << zoom))
+            
+            radar_frames.append({
+                "timestamp": timestamp * 1000,  # JavaScript timestamp
+                "frameIndex": frames - i - 1,  # Reverse order (oldest to newest)
+                "imageUrl": f"https://tilecache.rainviewer.com/v2/radar/{timestamp}/256/{zoom}/{x_tile}/{y_tile}/2/1_1.png",
+                "bounds": {
+                    "north": lat + 2,
+                    "south": lat - 2,
+                    "east": lng + 2,
+                    "west": lng - 2
+                }
+            })
+        
+        return {
+            "station_id": station_id,
+            "station_name": station["name"],
+            "frames": radar_frames,
+            "total_frames": frames,
+            "time_range_minutes": frames * 10,
+            "generated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting radar frames: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get radar frames: {str(e)}")
+
+@api_router.get("/radar-frames/national")
+async def get_national_radar_frames(frames: int = 100):
+    """🇺🇸 Get national radar animation frames"""
+    try:
+        # Validate frame count
+        frames = max(50, min(250, frames))
+        
+        # Generate national radar frames
+        radar_frames = []
+        base_time = datetime.now(timezone.utc)
+        
+        for i in range(frames):
+            frame_time = base_time - timedelta(minutes=i * 10)
+            timestamp = int(frame_time.timestamp())
+            
+            radar_frames.append({
+                "timestamp": timestamp * 1000,
+                "frameIndex": frames - i - 1,
+                "imageUrl": f"https://tilecache.rainviewer.com/v2/radar/{timestamp}/256/4/8/5/2/1_1.png",
+                "bounds": {
+                    "north": 50,
+                    "south": 25,
+                    "east": -65,
+                    "west": -125
+                }
+            })
+        
+        return {
+            "region": "Continental United States",
+            "frames": radar_frames,
+            "total_frames": frames,
+            "time_range_minutes": frames * 10,
+            "generated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting national radar frames: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get national radar frames: {str(e)}")
+
+@api_router.get("/monitoring-status")
+async def get_monitoring_status():
+    """📊 Get automated storm monitoring system status"""
+    try:
+        if storm_monitor:
+            status = storm_monitor.get_monitoring_status()
+            active_storms = storm_monitor.get_active_storms()
+            
+            return {
+                "system_status": status,
+                "active_storm_summary": {
+                    "total_storms": len(active_storms),
+                    "high_threat": len([s for s in active_storms if s['tornadoProbability'] > 70]),
+                    "moderate_threat": len([s for s in active_storms if 40 <= s['tornadoProbability'] <= 70]),
+                    "low_threat": len([s for s in active_storms if 20 <= s['tornadoProbability'] < 40])
+                },
+                "system_info": {
+                    "ml_model_version": "TornadoSuperPredictor v1.0",
+                    "monitoring_stations": 139,
+                    "ai_integration": "Claude Sonnet 3.7",
+                    "real_time_processing": True
+                }
+            }
+        else:
+            return {
+                "system_status": {"monitoring_active": False, "error": "Storm monitor not initialized"},
+                "active_storm_summary": {"total_storms": 0},
+                "system_info": {"status": "offline"}
+            }
+            
+    except Exception as e:
+        logger.error(f"Error getting monitoring status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get monitoring status: {str(e)}")
+
 @api_router.get("/subscription/{user_id}")
 async def get_user_subscription(user_id: str):
     """Get user subscription status"""
