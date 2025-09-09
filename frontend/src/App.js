@@ -20,6 +20,17 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 function App() {
+  // Application state
+  const [currentView, setCurrentView] = useState('radar'); // radar, pricing, account, login
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  
+  // Login/Register state
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [registerForm, setRegisterForm] = useState({ email: '', password: '', full_name: '' });
+  const [showLogin, setShowLogin] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false);
   const [radarStations, setRadarStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState(null);
   const [radarData, setRadarData] = useState(null);
