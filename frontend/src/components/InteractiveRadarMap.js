@@ -1510,7 +1510,8 @@ const InteractiveRadarMap = ({
             setFloatingPanel(prev => ({ ...prev, visible: false }));
           }}
         />
-      </MapContainer>
+        </MapContainer>
+      </div>
 
       {/* Enhanced CSS for radar visualization, scrolling, and fullscreen */}
       <style jsx global>{`
