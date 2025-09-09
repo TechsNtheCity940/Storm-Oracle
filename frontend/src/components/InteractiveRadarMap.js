@@ -340,58 +340,96 @@ const InteractiveRadarMap = ({
     try {
       let radarFrames = [];
       
-      if (stationId && selectedStation) {
-        console.log('📡 Loading station-specific radar data for:', selectedStation.name);
+      if (!stationId && !selectedStation) {
+        // National radar view (default)
+        console.log('🌍 Loading national radar data');
         
-        // Get current radar data directly from our working API
         try {
-          const currentResponse = await axios.get(`${API}/radar-data/${stationId}?data_type=${dataType}`);
-          console.log('✅ Current radar response received:', currentResponse.data);
+          // Create multiple frames for animation (simulating time progression)
+          for (let i = 0; i < frames; i++) {
+            const frameTimestamp = Date.now() - (i * 5 * 60 * 1000); // 5 minutes apart
+            const response = await axios.get(`${API}/radar-data/NATIONAL?data_type=${dataType}&timestamp=${frameTimestamp}`);
+            
+            const frame = {
+              timestamp: frameTimestamp,
+              frameIndex: frames - i - 1,
+              imageUrl: response.data.radar_url + `&t=${frameTimestamp}`, // Add timestamp for cache busting
+              bounds: {
+                north: 50,
+                south: 20,
+                east: -60,
+                west: -130
+              },
+              stationData: response.data
+            };
+            
+            radarFrames.unshift(frame);
+          }
           
-          setRealRadarData(currentResponse.data);
-          
-          // Create a single working frame first
-          const currentFrame = {
+          console.log('🌍 Created national radar animation with', radarFrames.length, 'frames');
+        } catch (error) {
+          console.error('❌ Error loading national radar frames:', error);
+          // Fallback single frame
+          radarFrames = [{
             timestamp: Date.now(),
             frameIndex: 0,
-            imageUrl: currentResponse.data.radar_url,
+            imageUrl: `${API}/radar-image/national?data_type=${dataType}&t=${Date.now()}`,
             bounds: {
-              north: currentResponse.data.coordinates.lat + 1.5,
-              south: currentResponse.data.coordinates.lat - 1.5,
-              east: currentResponse.data.coordinates.lon + 1.5,
-              west: currentResponse.data.coordinates.lon - 1.5
-            },
-            stationData: currentResponse.data
-          };
+              north: 50,
+              south: 20,
+              east: -60,
+              west: -130
+            }
+          }];
+        }
+      } else if (stationId && selectedStation) {
+        console.log('📡 Loading station-specific radar data for:', selectedStation.name);
+        
+        // Station-specific radar with animation frames
+        try {
+          for (let i = 0; i < frames; i++) {
+            const frameTimestamp = Date.now() - (i * 5 * 60 * 1000); // 5 minutes apart
+            const response = await axios.get(`${API}/radar-data/${stationId}?data_type=${dataType}&timestamp=${frameTimestamp}`);
+            
+            const frame = {
+              timestamp: frameTimestamp,
+              frameIndex: frames - i - 1,
+              imageUrl: response.data.radar_url + `&t=${frameTimestamp}`,
+              bounds: {
+                north: response.data.coordinates.lat + 1.5,
+                south: response.data.coordinates.lat - 1.5,
+                east: response.data.coordinates.lon + 1.5,
+                west: response.data.coordinates.lon - 1.5
+              },
+              stationData: response.data
+            };
+            
+            radarFrames.unshift(frame);
+          }
           
-          console.log('📸 Created radar frame with URL:', currentFrame.imageUrl);
-          console.log('🗺️ Frame bounds:', currentFrame.bounds);
-          
-          radarFrames = [currentFrame];
+          // Set real radar data from most recent frame
+          setRealRadarData(radarFrames[radarFrames.length - 1].stationData);
           
         } catch (error) {
-          console.error('❌ Error loading current radar data:', error);
-          throw error;
+          console.error('❌ Error loading station radar frames:', error);
+          // Fallback single frame
+          radarFrames = [{
+            timestamp: Date.now(),
+            frameIndex: 0,
+            imageUrl: `${API}/radar-image/${stationId}?data_type=${dataType}&t=${Date.now()}`,
+            bounds: {
+              north: selectedStation.latitude + 1.5,
+              south: selectedStation.latitude - 1.5,
+              east: selectedStation.longitude + 1.5,
+              west: selectedStation.longitude - 1.5
+            }
+          }];
         }
-      } else {
-        console.log('🌎 Loading national radar data');
-        // For national view, create a simple frame
-        radarFrames = [{
-          timestamp: Date.now(),
-          frameIndex: 0,
-          imageUrl: `https://tilecache.rainviewer.com/v2/radar/${Math.floor(Date.now()/1000)}/256/4/8/5/5/1_1.png`,
-          bounds: {
-            north: 50,
-            south: 20,
-            east: -60,
-            west: -130
-          }
-        }];
       }
       
-      console.log('🎬 Setting', radarFrames.length, 'radar frames:', radarFrames);
+      console.log('🎬 Setting', radarFrames.length, 'radar frames for animation');
       setRadarFrames(radarFrames);
-      setCurrentFrame(0); // Always start with first frame
+      setCurrentFrame(radarFrames.length - 1); // Start with most recent frame
       
     } catch (error) {
       console.error('💥 Error loading radar frames:', error);
