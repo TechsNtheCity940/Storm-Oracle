@@ -447,7 +447,7 @@ async def upgrade_subscription(user_id: str):
         upsert=True
     )
     
-    return {"message": "Subscription upgraded to premium", "features": premium_features}
+    return {"message": "Subscription upgraded to premium", "features": premium_features, "tier": "premium"}
 
 # Include the router in the main app
 app.include_router(api_router)
