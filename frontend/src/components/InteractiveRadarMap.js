@@ -131,6 +131,8 @@ const CustomZoomControls = () => {
 
   return null;
 };
+
+const StormCellMarkers = ({ stormCells, onStormClick }) => {
   const map = useMap();
 
   useEffect(() => {
