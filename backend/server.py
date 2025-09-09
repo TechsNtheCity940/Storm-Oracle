@@ -257,6 +257,10 @@ async def get_radar_stations(state: Optional[str] = None):
         query["state"] = state.upper()
     
     stations = await db.radar_stations.find(query).to_list(1000)
+    # Remove MongoDB ObjectId before creating Pydantic models
+    for station in stations:
+        if "_id" in station:
+            del station["_id"]
     return [RadarStation(**station) for station in stations]
 
 @api_router.get("/radar-stations/{station_id}", response_model=RadarStation)
