@@ -1412,17 +1412,41 @@ const InteractiveRadarMap = ({
         {isFullscreen ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
       </Button>
 
-      {/* Map Status */}
-      <div className="absolute bottom-4 left-20 z-[1000] bg-slate-800/95 backdrop-blur-sm rounded px-3 py-2">
-        <div className="text-white text-xs space-y-1">
-          <div>Center: {mapCenter[0].toFixed(4)}°, {mapCenter[1].toFixed(4)}°</div>
-          <div>Zoom: {mapZoom}</div>
-          <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-            <span>{isLoading ? 'Loading radar...' : 'Radar data live'}</span>
+      {/* Enhanced Map Status with Gaming Theme */}
+      <div className="game-control-panel absolute bottom-4 left-20 z-[1000]">
+        <div className="p-3">
+          <div className="text-white text-xs space-y-1">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-3 w-3 text-blue-400" />
+              <span>{mapCenter[0].toFixed(4)}°, {mapCenter[1].toFixed(4)}°</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="text-slate-400">Zoom:</div>
+              <div className="text-blue-400">{mapZoom}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="status-indicator">
+                <div className={`status-dot ${isLoading ? 'warning' : 'active'}`}></div>
+                <span>{isLoading ? 'Loading...' : 'Live'}</span>
+              </div>
+            </div>
+            {is3DMode && (
+              <div className="flex items-center gap-2">
+                <Cloud className="h-3 w-3 text-purple-400" />
+                <span className="text-purple-400">3D Mode Active</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Floating Info Panel */}
+      <FloatingInfoPanel
+        position={floatingPanel.position}
+        data={floatingPanel.data}
+        visible={floatingPanel.visible}
+        type={floatingPanel.type}
+      />
 
       {/* Interactive Map with Fullscreen Support */}
       <MapContainer
