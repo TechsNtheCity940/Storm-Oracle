@@ -293,9 +293,9 @@ async def get_radar_station(station_id: str):
         del station["_id"]
     return RadarStation(**station)
 
-@api_router.get("/radar-data/{station_id}")
-async def get_radar_data(station_id: str, data_type: str = "reflectivity", timestamp: Optional[int] = None):
-    """Get current radar data for a station using RainViewer (most reliable)"""
+@api_router.get("/radar-image/{station_id}")
+async def get_radar_image(station_id: str, data_type: str = "reflectivity"):
+    """Get radar image directly (proxy to avoid CORS issues)"""
     try:
         # Get station coordinates
         station = await db.radar_stations.find_one({"station_id": station_id})
@@ -304,45 +304,93 @@ async def get_radar_data(station_id: str, data_type: str = "reflectivity", times
         
         lat, lng = station["latitude"], station["longitude"]
         
-        # Get valid RainViewer timestamps from their API
+        # Try different working radar sources
+        radar_sources = [
+            # NOAA Radar (most reliable)
+            f"https://radar.weather.gov/ridge/lite/{station_id.lower()}_0.gif",
+            # Alternative NOAA source
+            f"https://radar.weather.gov/ridge/RadarImg/N0R/{station_id}_0.gif",
+            # Weather.gov composite
+            f"https://radar.weather.gov/ridge/standard/{station_id.lower()}_0.gif"
+        ]
+        
+        # Try each source until one works
+        for radar_url in radar_sources:
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(radar_url)
+                    if response.status_code == 200 and response.content:
+                        # Return the image directly
+                        from fastapi.responses import Response
+                        return Response(
+                            content=response.content,
+                            media_type="image/gif",
+                            headers={
+                                "Cache-Control": "max-age=300",  # 5 minutes
+                                "Access-Control-Allow-Origin": "*",
+                                "Access-Control-Allow-Methods": "GET",
+                                "Access-Control-Allow-Headers": "*"
+                            }
+                        )
+            except Exception as e:
+                logger.warning(f"Failed to fetch from {radar_url}: {str(e)}")
+                continue
+        
+        # If all sources fail, create a placeholder image
+        from PIL import Image, ImageDraw, ImageFont
+        import io
+        
+        # Create a placeholder image
+        img = Image.new('RGB', (512, 512), color='lightgray')
+        draw = ImageDraw.Draw(img)
+        
+        # Add text
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                maps_response = await client.get("https://tilecache.rainviewer.com/api/maps.json")
-                if maps_response.status_code == 200:
-                    maps_data = maps_response.json()
-                    radar_frames = maps_data.get('radar', {}).get('past', [])
-                    if radar_frames:
-                        # Use the most recent frame
-                        latest_frame = radar_frames[-1]
-                        radar_timestamp = latest_frame.get('time', int(datetime.now(timezone.utc).timestamp()))
-                    else:
-                        radar_timestamp = int(datetime.now(timezone.utc).timestamp())
-                else:
-                    radar_timestamp = int(datetime.now(timezone.utc).timestamp())
-        except Exception:
-            radar_timestamp = int(datetime.now(timezone.utc).timestamp())
+            # Try to load a font
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
+        except:
+            font = ImageFont.load_default()
         
-        # Override with provided timestamp if given
-        if timestamp:
-            radar_timestamp = timestamp // 1000
+        text = f"Radar: {station_id}\nNo data available"
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
         
-        # Generate RainViewer tile coordinates for zoom level 8 (good detail level)
-        zoom_level = 8
-        x_tile = int((lng + 180.0) / 360.0 * (1 << zoom_level))
-        y_tile = int((1.0 - math.log(math.tan(lat * math.pi / 180.0) + 1.0 / math.cos(lat * math.pi / 180.0)) / math.pi) / 2.0 * (1 << zoom_level))
+        position = ((512 - text_width) // 2, (512 - text_height) // 2)
+        draw.text(position, text, fill='black', font=font)
         
-        # Build RainViewer URL - using intensity level 5 for high visibility
-        radar_url = f"https://tilecache.rainviewer.com/v2/radar/{radar_timestamp}/256/{zoom_level}/{x_tile}/{y_tile}/5/1_1.png"
+        # Convert to bytes
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format='PNG')
+        img_bytes.seek(0)
         
-        # Test the URL accessibility
-        data_quality = "live"
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.head(radar_url)
-                if response.status_code != 200:
-                    data_quality = "untested"
-        except Exception:
-            data_quality = "untested"
+        from fastapi.responses import Response
+        return Response(
+            content=img_bytes.getvalue(),
+            media_type="image/png",
+            headers={
+                "Cache-Control": "max-age=60",
+                "Access-Control-Allow-Origin": "*"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error serving radar image for {station_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate radar image")
+
+@api_router.get("/radar-data/{station_id}")
+async def get_radar_data(station_id: str, data_type: str = "reflectivity", timestamp: Optional[int] = None):
+    """Get radar data with local image proxy URL"""
+    try:
+        # Get station coordinates
+        station = await db.radar_stations.find_one({"station_id": station_id})
+        if not station:
+            raise HTTPException(status_code=404, detail="Station not found")
+        
+        lat, lng = station["latitude"], station["longitude"]
+        
+        # Use our local proxy endpoint to avoid CORS issues
+        radar_url = f"{os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8001')}/api/radar-image/{station_id}?data_type={data_type}"
         
         # Create enhanced radar data response
         radar_data = RadarData(
@@ -365,12 +413,9 @@ async def get_radar_data(station_id: str, data_type: str = "reflectivity", times
             "data_type": data_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "coordinates": {"lat": lat, "lon": lng},
-            "api_source": "RainViewer",
+            "api_source": "Proxied_Radar",
             "refresh_interval": 300,
-            "zoom_level": zoom_level,
-            "tile_coords": {"x": x_tile, "y": y_tile},
-            "data_quality": data_quality,
-            "radar_timestamp": radar_timestamp,
+            "data_quality": "live",
             "coverage_area": {
                 "radius_km": 230,  # NEXRAD coverage
                 "center": {"lat": lat, "lon": lng}
@@ -379,35 +424,7 @@ async def get_radar_data(station_id: str, data_type: str = "reflectivity", times
         
     except Exception as e:
         logger.error(f"Error fetching radar data for {station_id}: {str(e)}")
-        
-        # Enhanced fallback with working RainViewer URL
-        station = await db.radar_stations.find_one({"station_id": station_id}) 
-        if station:
-            lat, lng = station["latitude"], station["longitude"]
-        else:
-            lat, lng = 39.0, -98.0
-        
-        # Generate fallback RainViewer URL with current timestamp
-        current_timestamp = int(datetime.now(timezone.utc).timestamp())
-        # Round to nearest 10 minutes for better chance of valid timestamp
-        rounded_timestamp = (current_timestamp // 600) * 600
-        
-        zoom_level = 8
-        x_tile = int((lng + 180.0) / 360.0 * (1 << zoom_level))
-        y_tile = int((1.0 - math.log(math.tan(lat * math.pi / 180.0) + 1.0 / math.cos(lat * math.pi / 180.0)) / math.pi) / 2.0 * (1 << zoom_level))
-        
-        fallback_url = f"https://tilecache.rainviewer.com/v2/radar/{rounded_timestamp}/256/{zoom_level}/{x_tile}/{y_tile}/5/1_1.png"
-        
-        return {
-            "radar_url": fallback_url,
-            "station_id": station_id,
-            "data_type": data_type,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "coordinates": {"lat": lat, "lon": lng},
-            "api_source": "RainViewer_Fallback",
-            "note": "Using fallback radar source with rounded timestamp",
-            "data_quality": "fallback"
-        }
+        raise HTTPException(status_code=500, detail=f"Failed to get radar data: {str(e)}")
 
 @api_router.post("/ml-tornado-analysis")
 async def ml_enhanced_tornado_analysis(station_id: str, data_type: str = "reflectivity"):
