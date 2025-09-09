@@ -91,7 +91,7 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
       }
     } catch (error) {
       console.error('Payment error:', error);
-      alert('Payment setup failed. Please try again.');
+      console.error('Payment setup failed. Please try again.');
     }
     setLoading(false);
   };
