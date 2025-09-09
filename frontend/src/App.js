@@ -786,6 +786,11 @@ function App() {
                   onStormClick={(storm) => console.log('Storm clicked:', storm)}
                   radarStations={radarStations}
                   radarData={radarData}
+                  tornadoData={tornadoAlerts}
+                  onTornadoClick={(tornado) => {
+                    console.log('Tornado clicked:', tornado);
+                    toast.info(`🌪️ ${tornado.alert_type}: EF${tornado.severity || 1} tornado ${tornado.confirmed ? 'confirmed' : 'predicted'}`);
+                  }}
                 />
               </div>
             </div>
