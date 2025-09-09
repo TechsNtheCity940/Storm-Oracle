@@ -208,9 +208,9 @@ class AtmosphericDataProcessor:
             if param in self.parameter_ranges:
                 min_val, max_val = self.parameter_ranges[param]
                 normalized_value = np.clip(value, min_val, max_val)
-                processed[param] = torch.tensor([normalized_value], dtype=torch.float32)
+                processed[param] = torch.tensor([[normalized_value]], dtype=torch.float32)  # Add batch dimension
             else:
-                processed[param] = torch.tensor([value], dtype=torch.float32)
+                processed[param] = torch.tensor([[value]], dtype=torch.float32)  # Add batch dimension
         
         # Create composite parameters
         processed['composite_index'] = self._calculate_composite_index(processed)
