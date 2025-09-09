@@ -277,37 +277,66 @@ const InteractiveRadarMap = ({
   const playbackRef = useRef(null);
   const mapRef = useRef(null);
 
-  // Load radar frames
+  // Load radar frames with proper error handling
   const loadRadarFrames = useCallback(async (stationId = null, frames = frameCount) => {
     setIsLoading(true);
     try {
-      const endpoint = stationId 
-        ? `${API}/radar-frames/${stationId}?frames=${frames}`
-        : `${API}/radar-frames/national?frames=${frames}`;
-      
-      // For now, create mock radar frames
-      const mockFrames = [];
-      for (let i = 0; i < frames; i++) {
-        const timestamp = Date.now() - (i * 10 * 60 * 1000); // 10 minutes apart
-        mockFrames.push({
-          timestamp,
-          imageUrl: `https://tilecache.rainviewer.com/v2/radar/${Math.floor(timestamp/1000)}/256/4/8/5/2/1_1.png`,
-          bounds: {
-            north: 50,
-            south: 25,
-            east: -65,
-            west: -125
-          }
-        });
+      let endpoint;
+      if (stationId && selectedStation) {
+        endpoint = `${API}/radar-frames/${stationId}?frames=${frames}`;
+      } else {
+        endpoint = `${API}/radar-frames/national?frames=${frames}`;
       }
       
-      setRadarFrames(mockFrames.reverse()); // Show oldest to newest
-      setCurrentFrame(mockFrames.length - 1); // Start with most recent
+      const response = await axios.get(endpoint);
+      
+      if (response.data && response.data.frames) {
+        setRadarFrames(response.data.frames);
+        setCurrentFrame(response.data.frames.length - 1); // Start with most recent
+      } else {
+        // Create mock frames if API doesn't return data
+        const mockFrames = [];
+        for (let i = 0; i < frames; i++) {
+          const timestamp = Date.now() - (i * 10 * 60 * 1000); // 10 minutes apart
+          mockFrames.push({
+            timestamp,
+            frameIndex: i,
+            imageUrl: `https://radar.weather.gov/ridge/lite/keax_0.gif?${timestamp}`,
+            bounds: stationId && selectedStation ? {
+              north: selectedStation.latitude + 2,
+              south: selectedStation.latitude - 2,
+              east: selectedStation.longitude + 2,
+              west: selectedStation.longitude - 2
+            } : {
+              north: 50,
+              south: 25,
+              east: -65,
+              west: -125
+            }
+          });
+        }
+        setRadarFrames(mockFrames.reverse());
+        setCurrentFrame(mockFrames.length - 1);
+      }
     } catch (error) {
       console.error('Error loading radar frames:', error);
+      // Create fallback frames
+      const fallbackFrames = Array.from({length: frames}, (_, i) => ({
+        timestamp: Date.now() - (i * 10 * 60 * 1000),
+        frameIndex: i,
+        imageUrl: `https://radar.weather.gov/ridge/lite/${stationId ? stationId.toLowerCase() : 'keax'}_0.gif?${Date.now()}`,
+        bounds: {
+          north: selectedStation ? selectedStation.latitude + 2 : 50,
+          south: selectedStation ? selectedStation.latitude - 2 : 25,
+          east: selectedStation ? selectedStation.longitude + 2 : -65,
+          west: selectedStation ? selectedStation.longitude - 2 : -125
+        }
+      }));
+      setRadarFrames(fallbackFrames.reverse());
+      setCurrentFrame(fallbackFrames.length - 1);
     }
     setIsLoading(false);
-  }, [frameCount]);
+  }, [frameCount, selectedStation]);
 
   // Auto-play radar animation
   useEffect(() => {
