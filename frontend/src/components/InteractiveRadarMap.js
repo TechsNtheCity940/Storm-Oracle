@@ -838,6 +838,17 @@ const InteractiveRadarMap = ({
         </Card>
       )}
 
+      {/* Standalone Fullscreen Toggle Button */}
+      <Button
+        onClick={toggleFullscreen}
+        className={`absolute bottom-4 left-4 z-[1001] bg-slate-800/95 border-slate-700 backdrop-blur-sm text-white hover:bg-slate-700 ${isFullscreen ? 'fixed' : 'absolute'}`}
+        size="sm"
+        variant="outline"
+        title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+      >
+        {isFullscreen ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+      </Button>
+
       {/* Map Status */}
       <div className="absolute bottom-4 left-4 z-[1000] bg-slate-800/95 backdrop-blur-sm rounded px-3 py-2">
         <div className="text-white text-xs space-y-1">
