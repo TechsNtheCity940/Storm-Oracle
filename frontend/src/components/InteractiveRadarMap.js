@@ -678,6 +678,8 @@ const InteractiveRadarMap = ({
           radarFrames={radarFrames}
           currentFrame={currentFrame}
           opacity={radarOpacity}
+          colorPalette={colorPalette}
+          dataType={dataType}
         />
         
         <StormCellMarkers 
