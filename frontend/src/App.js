@@ -11,7 +11,8 @@ import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./components/ui/dialog";
 import { Input } from "./components/ui/input";
 import { toast } from "sonner"; 
-import { Toaster } from "./components/ui/sonner"; 
+import { Toaster } from "./components/ui/sonner";
+import InteractiveRadarMap from "./components/InteractiveRadarMap"; 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
