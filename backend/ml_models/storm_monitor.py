@@ -8,8 +8,8 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 import json
-from tornado_predictor import tornado_prediction_engine
-from data_processor import ml_data_pipeline
+from .tornado_predictor import tornado_prediction_engine
+from .data_processor import ml_data_pipeline
 import httpx
 
 logger = logging.getLogger(__name__)
