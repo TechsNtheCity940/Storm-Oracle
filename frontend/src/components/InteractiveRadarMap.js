@@ -882,6 +882,8 @@ const InteractiveRadarMap = ({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
+        <CustomZoomControls />
+        
         <MapEventHandler />
         
         <RadarOverlay 
