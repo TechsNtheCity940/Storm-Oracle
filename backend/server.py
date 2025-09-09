@@ -360,14 +360,7 @@ async def analyze_tornado_risk(station_id: str, data_type: str = "reflectivity")
         return {
             "alert": alert_dict,
             "ai_analysis": ai_response,
-            "station_info": {
-                "station_id": station["station_id"],
-                "name": station["name"],
-                "latitude": station["latitude"],
-                "longitude": station["longitude"],
-                "elevation": station["elevation"],
-                "state": station["state"]
-            }
+            "station_info": station
         }
         
     except Exception as e:
