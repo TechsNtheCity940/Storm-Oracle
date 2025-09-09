@@ -113,7 +113,7 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
         }
       );
 
-      alert(`🎉 Free trial activated! ${response.data.message}`);
+      console.log(`🎉 Free trial activated! ${response.data.message}`);
       
       // Refresh trial status and user info
       await loadTrialStatus();
@@ -123,7 +123,7 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
     } catch (error) {
       console.error('Trial activation error:', error);
       const message = error.response?.data?.detail || 'Failed to start trial';
-      alert(`Trial activation failed: ${message}`);
+      console.error(`Trial activation failed: ${message}`);
     }
     setLoading(false);
   };
