@@ -223,8 +223,13 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
               <CardTitle className="text-white">Premium Monthly</CardTitle>
             </div>
             <div className="text-3xl font-bold text-white">
-              $19.99<span className="text-lg text-slate-400">/month</span>
+              ${packages.premium_monthly?.amount || 15.00}<span className="text-lg text-slate-400">/month</span>
             </div>
+            {packages.premium_monthly?.trial_days && trialStatus?.can_start_trial && (
+              <div className="text-sm text-purple-400 font-semibold">
+                🎉 {packages.premium_monthly.trial_days}-day free trial available!
+              </div>
+            )}
             <CardDescription className="text-slate-300">
               Full access to professional features
             </CardDescription>
