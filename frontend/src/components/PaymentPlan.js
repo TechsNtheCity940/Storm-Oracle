@@ -190,7 +190,7 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
               $0<span className="text-lg text-slate-400">/month</span>
             </div>
             <CardDescription className="text-slate-300">
-              Perfect for weather enthusiasts
+              <span className="text-blue-400 font-semibold">Enhanced Free Tier</span> - Live radar with all controls
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
