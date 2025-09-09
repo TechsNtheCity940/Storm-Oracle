@@ -212,10 +212,33 @@ class AtmosphericDataProcessor:
             else:
                 processed[param] = torch.tensor([[value]], dtype=torch.float32)  # Add batch dimension
         
-        # Create composite parameters
+        # Create composite parameters with proper dimensions
         processed['composite_index'] = self._calculate_composite_index(processed)
         processed['supercell_composite'] = self._calculate_supercell_composite(processed)
         processed['tornado_composite'] = self._calculate_tornado_composite(processed)
+        
+        # Group parameters for ML model
+        processed['cape'] = processed.get('cape', torch.tensor([[1000.0]]))
+        processed['wind_shear'] = torch.cat([
+            processed.get('shear_0_1km', torch.tensor([[10.0]])),
+            processed.get('shear_0_3km', torch.tensor([[20.0]])),
+            processed.get('shear_0_6km', torch.tensor([[30.0]])),
+            processed.get('shear_0_1km', torch.tensor([[25.0]]))  # deep layer proxy
+        ], dim=-1)
+        processed['helicity'] = torch.cat([
+            processed.get('helicity_0_1km', torch.tensor([[150.0]])),
+            processed.get('helicity_0_3km', torch.tensor([[250.0]]))
+        ], dim=-1)
+        processed['temperature'] = torch.cat([
+            processed.get('temperature_sfc', torch.tensor([[25.0]])),
+            processed.get('temperature_850', torch.tensor([[15.0]])),
+            processed.get('temperature_500', torch.tensor([[-15.0]]))
+        ], dim=-1)
+        processed['dewpoint'] = torch.cat([
+            processed.get('dewpoint_sfc', torch.tensor([[20.0]])),
+            processed.get('dewpoint_850', torch.tensor([[18.0]]))
+        ], dim=-1)
+        processed['pressure'] = processed.get('pressure_sfc', torch.tensor([[1012.0]])) / 1000  # Normalize
         
         return processed
     
