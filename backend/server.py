@@ -367,6 +367,10 @@ async def analyze_tornado_risk(station_id: str, data_type: str = "reflectivity")
 async def get_tornado_alerts(limit: int = 50):
     """Get recent tornado alerts"""
     alerts = await db.tornado_alerts.find().sort("timestamp", -1).limit(limit).to_list(limit)
+    # Remove MongoDB ObjectId before creating Pydantic models
+    for alert in alerts:
+        if "_id" in alert:
+            del alert["_id"]
     return [TornadoAlert(**alert) for alert in alerts]
 
 @api_router.post("/chat")
