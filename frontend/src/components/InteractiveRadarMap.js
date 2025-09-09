@@ -736,11 +736,31 @@ const InteractiveRadarMap = ({
       if (station) onStationSelect(station);
     };
 
+    window.focusTornado = (tornadoId) => {
+      const tornado = tornadoData.find(t => t.id === tornadoId);
+      if (tornado && mapRef.current) {
+        const lat = tornado.latitude || tornado.predicted_location?.lat;
+        const lng = tornado.longitude || tornado.predicted_location?.lng;
+        if (lat && lng) {
+          mapRef.current.setView([lat, lng], 10);
+        }
+      }
+    };
+
+    window.getTornadoDetails = (tornadoId) => {
+      const tornado = tornadoData.find(t => t.id === tornadoId);
+      if (tornado && onTornadoClick) {
+        onTornadoClick(tornado);
+      }
+    };
+
     return () => {
       delete window.jumpToStorm;
       delete window.selectRadarStation;
+      delete window.focusTornado;
+      delete window.getTornadoDetails;
     };
-  }, [stormCells, radarStations, onStationSelect]);
+  }, [stormCells, radarStations, onStationSelect, tornadoData, onTornadoClick]);
 
   const MapEventHandler = () => {
     useMapEvents({
