@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime, timezone
 import asyncio
 import httpx
+import math
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 ROOT_DIR = Path(__file__).parent
