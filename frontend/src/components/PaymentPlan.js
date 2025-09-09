@@ -30,6 +30,34 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
     }
   };
 
+  const loadTrialStatus = async () => {
+    try {
+      const token = localStorage.getItem('storm_oracle_token');
+      if (!token) return;
+
+      const response = await axios.get(`${API}/api/auth/trial-status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setTrialStatus(response.data);
+    } catch (error) {
+      console.error('Error loading trial status:', error);
+    }
+  };
+
+  const loadSubscriptionFeatures = async () => {
+    try {
+      const token = localStorage.getItem('storm_oracle_token');
+      if (!token) return;
+
+      const response = await axios.get(`${API}/api/subscription/features`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setSubscriptionFeatures(response.data);
+    } catch (error) {
+      console.error('Error loading subscription features:', error);
+    }
+  };
+
   const handleSubscribe = async (packageId) => {
     setLoading(true);
     try {
