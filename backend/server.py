@@ -401,7 +401,8 @@ async def chat_with_ai(message: str, user_id: str = "user", context: Optional[Di
             response=response,
             context=context
         )
-        await db.chat_messages.insert_one(chat_record.dict())
+        chat_dict = chat_record.dict()
+        await db.chat_messages.insert_one(chat_dict)
         
         return {
             "response": response,
