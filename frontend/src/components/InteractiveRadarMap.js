@@ -116,7 +116,21 @@ const RadarOverlay = ({ radarFrames, currentFrame, opacity, colorPalette, dataTy
   return null;
 };
 
-const StormCellMarkers = ({ stormCells, onStormClick }) => {
+const CustomZoomControls = () => {
+  const map = useMap();
+
+  useEffect(() => {
+    // Create custom zoom control positioned at top-right
+    const zoomControl = L.control.zoom({ position: 'topright' });
+    zoomControl.addTo(map);
+
+    return () => {
+      map.removeControl(zoomControl);
+    };
+  }, [map]);
+
+  return null;
+};
   const map = useMap();
 
   useEffect(() => {
