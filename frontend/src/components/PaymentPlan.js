@@ -63,7 +63,7 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
     try {
       const token = localStorage.getItem('storm_oracle_token');
       if (!token) {
-        alert('Please login to subscribe');
+        console.error('Please login to subscribe');
         return;
       }
 
