@@ -217,7 +217,7 @@ frontend:
     file: "/app/frontend/src/components/InteractiveRadarMap.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
@@ -225,6 +225,45 @@ frontend:
       - working: false
         agent: "main"
         comment: "Backend radar API now fixed and returns working URLs. Frontend RadarOverlay component needs testing to verify it can now display the working radar imagery. Fixed JavaScript errors with coordinate handling using optional chaining."
+      - working: false
+        agent: "testing"
+        comment: "TESTED: Radar page loads with controls but visual radar data overlay still not working. Found 6 control elements and radar interface loads properly, but actual radar imagery display remains broken."
+
+  - task: "Update frontend pricing to match backend $15/month"
+    implemented: false
+    working: false
+    file: "/app/frontend/src/components/PaymentPlan.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "CRITICAL ISSUE: Frontend shows hardcoded pricing $19.99/month and $199.99/year instead of backend's correct $15.00/month and $150.00/year. PaymentPlan.js lines 153 and 190 have hardcoded values that override backend API data."
+
+  - task: "Integrate free trial UI components"
+    implemented: false
+    working: "NA"
+    file: "/app/frontend/src/components/PaymentPlan.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "MISSING FEATURE: No trial-related UI elements found in frontend. Backend has complete trial system (/auth/start-trial, /auth/trial-status) but frontend doesn't integrate with it. No 'Start Free Trial' buttons or trial status displays."
+
+  - task: "Update free tier feature descriptions"
+    implemented: false
+    working: false
+    file: "/app/frontend/src/components/PaymentPlan.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "MISSING FEATURE: Frontend doesn't show enhanced free tier messaging. No mention of live 2D radar, 100 frames, 5x speed, or other enhanced features that backend supports for free tier users."
 
 metadata:
   created_by: "main_agent"
