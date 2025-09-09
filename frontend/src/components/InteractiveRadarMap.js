@@ -280,66 +280,136 @@ const InteractiveRadarMap = ({
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
 
-  // Load radar frames with proper error handling
+  // Enhanced radar frames loading with real data
   const loadRadarFrames = useCallback(async (stationId = null, frames = frameCount) => {
     setIsLoading(true);
     try {
-      let endpoint;
+      let radarFrames = [];
+      
       if (stationId && selectedStation) {
-        endpoint = `${API}/radar-frames/${stationId}?frames=${frames}`;
-      } else {
-        endpoint = `${API}/radar-frames/national?frames=${frames}`;
-      }
-      
-      const response = await axios.get(endpoint);
-      
-      if (response.data && response.data.frames) {
-        setRadarFrames(response.data.frames);
-        setCurrentFrame(response.data.frames.length - 1); // Start with most recent
-      } else {
-        // Create mock frames if API doesn't return data
-        const mockFrames = [];
+        // Load station-specific radar data
         for (let i = 0; i < frames; i++) {
-          const timestamp = Date.now() - (i * 10 * 60 * 1000); // 10 minutes apart
-          mockFrames.push({
-            timestamp,
-            frameIndex: i,
-            imageUrl: `https://radar.weather.gov/ridge/lite/keax_0.gif?${timestamp}`,
-            bounds: stationId && selectedStation ? {
-              north: selectedStation.latitude + 2,
-              south: selectedStation.latitude - 2,
-              east: selectedStation.longitude + 2,
-              west: selectedStation.longitude - 2
-            } : {
-              north: 50,
-              south: 25,
-              east: -65,
-              west: -125
-            }
-          });
+          const timeOffset = i * 10 * 60 * 1000; // 10 minutes apart
+          const timestamp = Date.now() - timeOffset;
+          
+          try {
+            // Try to get real radar data from our API
+            const response = await axios.get(`${API}/radar-data/${stationId}?data_type=${dataType}&timestamp=${timestamp}`);
+            
+            radarFrames.push({
+              timestamp,
+              frameIndex: frames - i - 1,
+              imageUrl: response.data.radar_url,
+              bounds: {
+                north: selectedStation.latitude + 3,
+                south: selectedStation.latitude - 3,
+                east: selectedStation.longitude + 3,
+                west: selectedStation.longitude - 3
+              },
+              stationData: response.data
+            });
+          } catch (error) {
+            // Fallback to constructed URLs if API fails
+            const radarTypeCode = dataType === 'base_velocity' ? '1' : '0';
+            const imageUrl = `https://radar.weather.gov/ridge/lite/${stationId.toLowerCase()}_${radarTypeCode}.gif?${timestamp}`;
+            
+            radarFrames.push({
+              timestamp,
+              frameIndex: frames - i - 1,
+              imageUrl,
+              bounds: {
+                north: selectedStation.latitude + 3,
+                south: selectedStation.latitude - 3,
+                east: selectedStation.longitude + 3,
+                west: selectedStation.longitude - 3
+              }
+            });
+          }
         }
-        setRadarFrames(mockFrames.reverse());
-        setCurrentFrame(mockFrames.length - 1);
+      } else {
+        // Load national radar data
+        try {
+          const response = await axios.get(`${API}/radar-frames/national?frames=${frames}&data_type=${dataType}`);
+          if (response.data && response.data.frames) {
+            radarFrames = response.data.frames;
+          } else {
+            throw new Error('No frames in response');
+          }
+        } catch (error) {
+          // Generate national radar frames with real URLs
+          for (let i = 0; i < frames; i++) {
+            const timeOffset = i * 10 * 60 * 1000;
+            const timestamp = Date.now() - timeOffset;
+            
+            radarFrames.push({
+              timestamp,
+              frameIndex: frames - i - 1,
+              imageUrl: `https://radar.weather.gov/ridge/RadarImg/N0R/USA_0.gif?${timestamp}`,
+              bounds: {
+                north: 50,
+                south: 20,
+                east: -60,
+                west: -130
+              }
+            });
+          }
+        }
       }
+      
+      setRadarFrames(radarFrames.reverse()); // Oldest to newest
+      setCurrentFrame(radarFrames.length - 1); // Start with most recent
+      
     } catch (error) {
       console.error('Error loading radar frames:', error);
-      // Create fallback frames
-      const fallbackFrames = Array.from({length: frames}, (_, i) => ({
-        timestamp: Date.now() - (i * 10 * 60 * 1000),
-        frameIndex: i,
-        imageUrl: `https://radar.weather.gov/ridge/lite/${stationId ? stationId.toLowerCase() : 'keax'}_0.gif?${Date.now()}`,
-        bounds: {
-          north: selectedStation ? selectedStation.latitude + 2 : 50,
-          south: selectedStation ? selectedStation.latitude - 2 : 25,
-          east: selectedStation ? selectedStation.longitude + 2 : -65,
-          west: selectedStation ? selectedStation.longitude - 2 : -125
-        }
-      }));
-      setRadarFrames(fallbackFrames.reverse());
-      setCurrentFrame(fallbackFrames.length - 1);
+      // Create minimal fallback
+      setRadarFrames([]);
     }
     setIsLoading(false);
-  }, [frameCount, selectedStation]);
+  }, [frameCount, selectedStation, dataType]);
+
+  // Fullscreen functionality
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      mapContainerRef.current?.requestFullscreen?.() || 
+      mapContainerRef.current?.webkitRequestFullscreen?.() ||
+      mapContainerRef.current?.mozRequestFullScreen?.();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.() ||
+      document.webkitExitFullscreen?.() ||
+      document.mozCancelFullScreen?.();
+      setIsFullscreen(false);
+    }
+  }, []);
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  // Enhanced data type change handler
+  const handleDataTypeChange = useCallback((newDataType) => {
+    setDataType(newDataType);
+    setColorPalette(RADAR_DATA_TYPES[newDataType]?.defaultColors || 'nexrad_reflectivity');
+    // Reload frames with new data type
+    if (selectedStation) {
+      loadRadarFrames(selectedStation.station_id, frameCount);
+    } else {
+      loadRadarFrames(null, frameCount);
+    }
+  }, [selectedStation, frameCount, loadRadarFrames]);
 
   // Auto-play radar animation
   useEffect(() => {
