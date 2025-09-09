@@ -158,13 +158,13 @@ class RadarProcessor:
             
             # Apply radar color scheme
             if data_type == "velocity":
-                radar_cmap = plt.cm.get_cmap('pyart_NWSVel')
+                radar_cmap = plt.cm.get_cmap('NWSVel')  # Fixed: Use 'NWSVel' instead of 'pyart_NWSVel'
                 # Convert to velocity data (-30 to +30 m/s)
                 weather_intensity = (weather_intensity - 25) * 60 / 50
                 vmin, vmax = -30, 30
                 label = 'Velocity (m/s)'
             else:
-                radar_cmap = plt.cm.get_cmap('pyart_NWSRef')
+                radar_cmap = plt.cm.get_cmap('NWSRef')  # Fixed: Use 'NWSRef' instead of 'pyart_NWSRef'
                 vmin, vmax = 0, 70
                 label = 'Reflectivity (dBZ)'
             
