@@ -678,14 +678,22 @@ class StormOracleAPITester:
         # Test comprehensive subscription system
         self.test_subscription_system()
         
-        # Test subscription features endpoint
+        # Test subscription features endpoint (without auth)
         self.test_subscription_features_endpoint()
         
-        # Test free trial system
+        # Test free trial system (without auth)
         self.test_free_trial_system()
         
         # Test enhanced free tier features
         self.test_enhanced_free_tier_features()
+        
+        # Test authentication flow
+        auth_success, auth_data = self.test_authentication_flow()
+        
+        # Test authenticated subscription features
+        if auth_success:
+            self.test_authenticated_subscription_features()
+            self.test_authenticated_trial_system()
         
         # Test AI chat
         self.test_ai_chat()
