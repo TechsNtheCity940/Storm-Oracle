@@ -345,48 +345,69 @@ async def get_radar_image(station_id: str, data_type: str = "reflectivity"):
 
 @api_router.get("/radar-data/{station_id}")
 async def get_radar_data(station_id: str, data_type: str = "reflectivity", timestamp: Optional[int] = None):
-    """Get radar data with local image proxy URL"""
+    """Get radar data with PyART image proxy URL (supports national and individual stations)"""
     try:
-        # Get station coordinates
-        station = await db.radar_stations.find_one({"station_id": station_id})
-        if not station:
-            raise HTTPException(status_code=404, detail="Station not found")
-        
-        lat, lng = station["latitude"], station["longitude"]
-        
-        # Use our local proxy endpoint to avoid CORS issues
+        # Define backend_url at the beginning
         backend_url = os.environ.get('BACKEND_URL', 'https://weather-insight.preview.emergentagent.com')
-        radar_url = f"{backend_url}/api/radar-image/{station_id}?data_type={data_type}"
         
-        # Create enhanced radar data response
-        radar_data = RadarData(
-            station_id=station_id,
-            data_type=data_type,
-            reflectivity_url=radar_url if 'reflectivity' in data_type else None,
-            velocity_url=radar_url if 'velocity' in data_type else None,
-            timestamp=datetime.now(timezone.utc)
-        )
-        
-        # Store in database
-        radar_dict = radar_data.dict()
-        if 'timestamp' in radar_dict and radar_dict['timestamp']:
-            radar_dict['timestamp'] = radar_dict['timestamp'].isoformat()
-        await db.radar_data.insert_one(radar_dict)
-        
-        return {
-            "radar_url": radar_url,
-            "station_id": station_id,
-            "data_type": data_type,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "coordinates": {"lat": lat, "lon": lng},
-            "api_source": "Proxied_Radar",
-            "refresh_interval": 300,
-            "data_quality": "live",
-            "coverage_area": {
-                "radius_km": 230,  # NEXRAD coverage
-                "center": {"lat": lat, "lon": lng}
+        if station_id.upper() == "NATIONAL":
+            # National radar view
+            radar_url = f"{backend_url}/api/radar-image/national?data_type={data_type}"
+            
+            return {
+                "radar_url": radar_url,
+                "station_id": "NATIONAL",
+                "data_type": data_type,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "coordinates": {"lat": 39.0, "lon": -98.0},  # Center of US
+                "api_source": "PyART_National",
+                "refresh_interval": 300,
+                "data_quality": "live",
+                "coverage_area": {
+                    "radius_km": 3000,  # National coverage
+                    "center": {"lat": 39.0, "lon": -98.0}
+                }
             }
-        }
+        else:
+            # Individual station radar
+            station = await db.radar_stations.find_one({"station_id": station_id})
+            if not station:
+                raise HTTPException(status_code=404, detail="Station not found")
+            
+            lat, lng = station["latitude"], station["longitude"]
+            
+            # Use PyART proxy endpoint
+            radar_url = f"{backend_url}/api/radar-image/{station_id}?data_type={data_type}"
+            
+            # Create enhanced radar data response
+            radar_data = RadarData(
+                station_id=station_id,
+                data_type=data_type,
+                reflectivity_url=radar_url if 'reflectivity' in data_type else None,
+                velocity_url=radar_url if 'velocity' in data_type else None,
+                timestamp=datetime.now(timezone.utc)
+            )
+            
+            # Store in database
+            radar_dict = radar_data.dict()
+            if 'timestamp' in radar_dict and radar_dict['timestamp']:
+                radar_dict['timestamp'] = radar_dict['timestamp'].isoformat()
+            await db.radar_data.insert_one(radar_dict)
+            
+            return {
+                "radar_url": radar_url,
+                "station_id": station_id,
+                "data_type": data_type,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "coordinates": {"lat": lat, "lon": lng},
+                "api_source": "PyART_Station",
+                "refresh_interval": 300,
+                "data_quality": "live",
+                "coverage_area": {
+                    "radius_km": 230,  # NEXRAD coverage
+                    "center": {"lat": lat, "lon": lng}
+                }
+            }
         
     except Exception as e:
         logger.error(f"Error fetching radar data for {station_id}: {str(e)}")
