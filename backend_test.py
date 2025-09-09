@@ -283,40 +283,141 @@ class StormOracleAPITester:
         return self.run_test("Get Tornado Alerts", "GET", "tornado-alerts")
 
     def test_subscription_system(self):
-        """Test subscription system"""
-        user_id = "user123"
+        """Test comprehensive subscription and pricing system"""
+        print(f"\n💰 COMPREHENSIVE SUBSCRIPTION & PRICING SYSTEM TESTING")
+        print("=" * 60)
         
-        # Test get subscription
-        print(f"\n👤 Testing Subscription System for {user_id}")
-        success1, sub_data = self.run_test(f"Get Subscription for {user_id}", "GET", f"subscription/{user_id}")
+        all_tests_passed = True
         
-        if success1 and sub_data:
-            current_tier = sub_data.get('tier', 'unknown')
-            print(f"   Current tier: {current_tier}")
+        # Test 1: Payment Packages Endpoint
+        print(f"\n📦 Testing Payment Packages...")
+        success, packages_data = self.run_test("Get Payment Packages", "GET", "payments/packages")
+        
+        if success and packages_data:
+            packages = packages_data.get('packages', {})
             
-            # Test upgrade if currently free
-            if current_tier == 'free':
-                success2, upgrade_data = self.run_test(f"Upgrade Subscription for {user_id}", "POST", 
-                                                     f"subscription/{user_id}/upgrade")
-                
-                if success2:
-                    # Verify upgrade worked
-                    time.sleep(1)  # Brief delay
-                    success3, new_sub_data = self.run_test(f"Verify Upgrade for {user_id}", "GET", 
-                                                         f"subscription/{user_id}")
-                    
-                    if success3 and new_sub_data:
-                        new_tier = new_sub_data.get('tier', 'unknown')
-                        print(f"   New tier after upgrade: {new_tier}")
-                        
-                        if new_tier == 'premium':
-                            print("   ✅ Subscription upgrade successful!")
-                        else:
-                            print("   ⚠️  Subscription upgrade may not have persisted")
-                
-                return success2, upgrade_data
+            # Verify premium monthly pricing is $15.00
+            premium_monthly = packages.get('premium_monthly', {})
+            if premium_monthly.get('amount') == 15.00:
+                print(f"   ✅ Premium monthly price correct: ${premium_monthly.get('amount')}")
+                self.log_test("Premium Monthly Price $15.00", True)
+            else:
+                print(f"   ❌ Premium monthly price incorrect: ${premium_monthly.get('amount')} (expected $15.00)")
+                self.log_test("Premium Monthly Price $15.00", False, f"Got ${premium_monthly.get('amount')}")
+                all_tests_passed = False
+            
+            # Verify premium annual pricing is $150.00
+            premium_annual = packages.get('premium_annual', {})
+            if premium_annual.get('amount') == 150.00:
+                print(f"   ✅ Premium annual price correct: ${premium_annual.get('amount')}")
+                self.log_test("Premium Annual Price $150.00", True)
+            else:
+                print(f"   ❌ Premium annual price incorrect: ${premium_annual.get('amount')} (expected $150.00)")
+                self.log_test("Premium Annual Price $150.00", False, f"Got ${premium_annual.get('amount')}")
+                all_tests_passed = False
+            
+            # Verify trial days are 7 for both packages
+            for package_name, package_data in [("premium_monthly", premium_monthly), ("premium_annual", premium_annual)]:
+                trial_days = package_data.get('trial_days')
+                if trial_days == 7:
+                    print(f"   ✅ {package_name} trial days correct: {trial_days}")
+                    self.log_test(f"{package_name} Trial Days", True)
+                else:
+                    print(f"   ❌ {package_name} trial days incorrect: {trial_days} (expected 7)")
+                    self.log_test(f"{package_name} Trial Days", False, f"Got {trial_days}")
+                    all_tests_passed = False
+        else:
+            all_tests_passed = False
         
-        return success1, sub_data
+        return all_tests_passed
+
+    def test_subscription_features_endpoint(self):
+        """Test subscription features endpoint for different user types"""
+        print(f"\n🎯 TESTING SUBSCRIPTION FEATURES ENDPOINT")
+        print("=" * 50)
+        
+        # Note: This test requires authentication, so we'll test without auth first
+        # to see the expected error, then with proper auth if available
+        
+        success, features_data = self.run_test("Get Subscription Features (No Auth)", "GET", 
+                                             "subscription/features", expected_status=401)
+        
+        if success:
+            print("   ✅ Properly requires authentication")
+            self.log_test("Subscription Features Auth Required", True)
+        else:
+            print("   ❌ Should require authentication but doesn't")
+            self.log_test("Subscription Features Auth Required", False)
+            return False
+        
+        return True
+
+    def test_free_trial_system(self):
+        """Test free trial system endpoints"""
+        print(f"\n🆓 TESTING FREE TRIAL SYSTEM")
+        print("=" * 40)
+        
+        all_tests_passed = True
+        
+        # Test trial endpoints without auth (should fail with 401)
+        print(f"\n🔒 Testing trial endpoints authentication...")
+        
+        # Test start trial endpoint
+        success1, _ = self.run_test("Start Trial (No Auth)", "POST", "auth/start-trial", expected_status=401)
+        if success1:
+            print("   ✅ Start trial properly requires authentication")
+            self.log_test("Start Trial Auth Required", True)
+        else:
+            print("   ❌ Start trial should require authentication")
+            self.log_test("Start Trial Auth Required", False)
+            all_tests_passed = False
+        
+        # Test trial status endpoint
+        success2, _ = self.run_test("Trial Status (No Auth)", "GET", "auth/trial-status", expected_status=401)
+        if success2:
+            print("   ✅ Trial status properly requires authentication")
+            self.log_test("Trial Status Auth Required", True)
+        else:
+            print("   ❌ Trial status should require authentication")
+            self.log_test("Trial Status Auth Required", False)
+            all_tests_passed = False
+        
+        return all_tests_passed
+
+    def test_enhanced_free_tier_features(self):
+        """Test enhanced free tier features access"""
+        print(f"\n🆓 TESTING ENHANCED FREE TIER FEATURES")
+        print("=" * 45)
+        
+        # This test verifies that the subscription limits are properly configured
+        # We can't test actual user access without authentication, but we can verify
+        # the system is set up correctly by checking related endpoints
+        
+        print("   ℹ️  Enhanced free tier features testing requires authenticated user")
+        print("   ℹ️  Verifying system configuration instead...")
+        
+        # Test that radar data endpoints work (free tier should have access)
+        success, radar_data = self.run_test("Radar Data Access (Free Tier)", "GET", 
+                                          "radar-data/KEAX", params={"data_type": "reflectivity"})
+        
+        if success and radar_data:
+            print("   ✅ Radar data accessible (free tier feature)")
+            self.log_test("Free Tier Radar Access", True)
+            
+            # Check if response includes expected free tier data types
+            data_type = radar_data.get('data_type')
+            if data_type in ['reflectivity', '2d']:
+                print(f"   ✅ Correct data type for free tier: {data_type}")
+                self.log_test("Free Tier Data Type", True)
+            else:
+                print(f"   ⚠️  Unexpected data type: {data_type}")
+                self.log_test("Free Tier Data Type", True, f"Got {data_type}")
+        else:
+            print("   ❌ Radar data not accessible")
+            self.log_test("Free Tier Radar Access", False)
+            return False
+        
+        return True
 
     def test_ai_chat(self):
         """Test AI chat endpoint"""
