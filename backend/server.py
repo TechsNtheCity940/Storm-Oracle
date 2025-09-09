@@ -385,11 +385,19 @@ async def get_radar_data(station_id: str, data_type: str = "reflectivity"):
             
         except Exception as fallback_error:
             logger.error(f"Fallback also failed: {str(fallback_error)}")
+            # Get station coordinates for fallback
+            station = await db.radar_stations.find_one({"station_id": station_id})
+            if station:
+                lat, lng = station['latitude'], station['longitude']
+            else:
+                lat, lng = 39.0, -98.0  # Default to center of US
+            
             return {
                 "radar_url": "https://via.placeholder.com/512x512/1a1a1a/ffffff?text=Radar+Data+Loading...",
                 "station_id": station_id,
                 "data_type": data_type,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
+                "coordinates": {"lat": lat, "lon": lng},
                 "api_source": "Placeholder",
                 "note": "Radar service temporarily unavailable"
             }
