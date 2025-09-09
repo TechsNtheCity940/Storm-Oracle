@@ -6,8 +6,67 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Slider } from './ui/slider';
 import { Badge } from './ui/badge';
-import { Play, Pause, SkipBack, SkipForward, RotateCcw, MapPin, AlertTriangle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { 
+  Play, Pause, SkipBack, SkipForward, RotateCcw, MapPin, AlertTriangle, 
+  ChevronLeft, ChevronRight, Settings, Palette, Eye, EyeOff 
+} from 'lucide-react';
 import axios from 'axios';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+// Radar data types configuration
+const RADAR_DATA_TYPES = {
+  'base_reflectivity': { name: 'Base Reflectivity', defaultColors: 'nexrad_reflectivity' },
+  'hi_res_reflectivity': { name: 'Hi-Res Reflectivity', defaultColors: 'nexrad_reflectivity' },
+  'base_velocity': { name: 'Base Velocity', defaultColors: 'velocity_standard' },
+  'hi_res_velocity': { name: 'Hi-Res Velocity', defaultColors: 'velocity_standard' },
+  'storm_relative_velocity': { name: 'Storm Relative Velocity', defaultColors: 'velocity_storm' },
+  'mrms_reflectivity': { name: 'MRMS Reflectivity', defaultColors: 'mrms_standard' },
+  'composite_reflectivity': { name: 'Composite Reflectivity', defaultColors: 'composite' },
+  'echo_tops': { name: 'Echo Tops', defaultColors: 'echo_tops' }
+};
+
+// Color palette configurations
+const COLOR_PALETTES = {
+  nexrad_reflectivity: {
+    name: 'NEXRAD Reflectivity',
+    description: 'Green → Yellow → Red → Purple → White',
+    colors: ['#00ff00', '#ffff00', '#ff8000', '#ff0000', '#ff00ff', '#ffffff']
+  },
+  high_contrast_reflectivity: {
+    name: 'High Contrast',
+    description: 'Blue → Cyan → Green → Yellow → Red → Magenta',
+    colors: ['#0000ff', '#00ffff', '#00ff00', '#ffff00', '#ff0000', '#ff00ff']
+  },
+  velocity_standard: {
+    name: 'Standard Velocity',
+    description: 'Green (approaching) → Red (receding)',
+    colors: ['#00ff00', '#80ff80', '#ffffff', '#ff8080', '#ff0000']
+  },
+  velocity_storm: {
+    name: 'Storm Relative',
+    description: 'Green → White → Red with Purple rotation',
+    colors: ['#00ff00', '#ffffff', '#ff0000', '#8000ff']
+  },
+  mrms_standard: {
+    name: 'MRMS Standard',
+    description: 'Enhanced multi-radar mosaic colors',
+    colors: ['#404040', '#00ff00', '#ffff00', '#ff8000', '#ff0000', '#8000ff']
+  },
+  composite: {
+    name: 'Composite',
+    description: 'Multi-layer composite colors',
+    colors: ['#000040', '#0080ff', '#00ff80', '#ffff00', '#ff4000', '#ff0080']
+  },
+  echo_tops: {
+    name: 'Echo Tops',
+    description: 'Height-based coloring',
+    colors: ['#404040', '#0080ff', '#00ff00', '#ffff00', '#ff8000', '#ff0000']
+  }
+};
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
