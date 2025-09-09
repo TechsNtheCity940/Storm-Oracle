@@ -859,7 +859,7 @@ const InteractiveRadarMap = ({
         }}
         ref={mapRef}
         className="radar-map"
-        zoomControl={!isFullscreen}
+        zoomControl={false}  // Disable default zoom control to add custom positioned one
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
