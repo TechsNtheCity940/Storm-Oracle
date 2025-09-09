@@ -850,7 +850,7 @@ const InteractiveRadarMap = ({
       </Button>
 
       {/* Map Status */}
-      <div className="absolute bottom-4 left-4 z-[1000] bg-slate-800/95 backdrop-blur-sm rounded px-3 py-2">
+      <div className="absolute bottom-4 left-20 z-[1000] bg-slate-800/95 backdrop-blur-sm rounded px-3 py-2">
         <div className="text-white text-xs space-y-1">
           <div>Center: {mapCenter[0].toFixed(4)}°, {mapCenter[1].toFixed(4)}°</div>
           <div>Zoom: {mapZoom}</div>
