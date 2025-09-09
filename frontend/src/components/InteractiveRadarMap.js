@@ -286,15 +286,18 @@ const RadarStationMarkers = ({ radarStations, onStationClick, selectedStation })
           <p style="margin: 4px 0;"><strong>ID:</strong> ${station.station_id}</p>
           <p style="margin: 4px 0;"><strong>State:</strong> ${station.state}</p>
           <p style="margin: 4px 0;"><strong>Elevation:</strong> ${station.elevation}ft</p>
-          <button onclick="window.selectRadarStation('${station.station_id}')" style="
-            background: #8b5cf6;
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 8px;
-          ">Select Station</button>
+          <div style="margin-top: 8px; text-align: center;">
+            <button id="select-${station.station_id}" style="
+              background: #8b5cf6;
+              color: white;
+              padding: 6px 12px;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 12px;
+              font-weight: bold;
+            ">Select This Radar</button>
+          </div>
         </div>
       `);
 
