@@ -251,7 +251,12 @@ function App() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={showLogin ? handleLogin : handleRegister} className="space-y-4">
+          <form 
+            onSubmit={showLogin ? handleLogin : handleRegister} 
+            className="space-y-4"
+            noValidate
+            autoComplete="on"
+          >
             {!showLogin && (
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">
@@ -259,15 +264,17 @@ function App() {
                 </label>
                 <Input
                   type="text"
+                  name="fullName"
                   value={registerForm.full_name}
                   onChange={(e) => {
                     const value = e.target.value;
                     setRegisterForm(prev => ({...prev, full_name: value}));
                   }}
-                  className="bg-slate-700 border-slate-600 text-white"
+                  className="bg-slate-700 border-slate-600 text-white mobile-input"
                   placeholder="Enter your full name"
                   required
                   autoComplete="name"
+                  spellCheck={false}
                 />
               </div>
             )}
@@ -277,6 +284,7 @@ function App() {
               </label>
               <Input
                 type="email"
+                name="email"
                 value={showLogin ? loginForm.email : registerForm.email}
                 onChange={(e) => {
                   const value = e.target.value;
@@ -286,11 +294,14 @@ function App() {
                     setRegisterForm(prev => ({...prev, email: value}));
                   }
                 }}
-                className="bg-slate-700 border-slate-600 text-white"
+                className="bg-slate-700 border-slate-600 text-white mobile-input"
                 placeholder="Enter your email"
                 required
                 autoComplete="email"
                 inputMode="email"
+                spellCheck={false}
+                autoCapitalize="none"
+                autoCorrect="off"
               />
             </div>
             <div>
@@ -299,6 +310,7 @@ function App() {
               </label>
               <Input
                 type="password"
+                name="password"
                 value={showLogin ? loginForm.password : registerForm.password}
                 onChange={(e) => {
                   const value = e.target.value;
@@ -308,15 +320,18 @@ function App() {
                     setRegisterForm(prev => ({...prev, password: value}));
                   }
                 }}
-                className="bg-slate-700 border-slate-600 text-white"
+                className="bg-slate-700 border-slate-600 text-white mobile-input"
                 placeholder="Enter your password"
                 required
                 autoComplete={showLogin ? "current-password" : "new-password"}
+                spellCheck={false}
+                autoCapitalize="none"
+                autoCorrect="off"
               />
             </div>
             <Button 
               type="submit" 
-              className="w-full bg-blue-600 hover:bg-blue-700"
+              className="w-full bg-blue-600 hover:bg-blue-700 mobile-button"
               disabled={authLoading}
             >
               {authLoading ? 'Processing...' : (showLogin ? 'Sign In' : 'Create Account')}
@@ -327,13 +342,42 @@ function App() {
             <Button
               variant="ghost"
               className="text-blue-400 hover:text-blue-300"
-              onClick={() => setShowLogin(!showLogin)}
+              onClick={() => {
+                setShowLogin(!showLogin);
+                // Clear forms when switching
+                setLoginForm({ email: '', password: '' });
+                setRegisterForm({ email: '', password: '', full_name: '' });
+              }}
             >
               {showLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
             </Button>
           </div>
         </CardContent>
       </Card>
+      
+      {/* Mobile-specific styles */}
+      <style jsx>{`
+        .mobile-input {
+          font-size: 16px !important; /* Prevents zoom on iOS */
+          -webkit-appearance: none;
+          -webkit-border-radius: 0;
+          border-radius: 4px;
+        }
+        
+        .mobile-button {
+          -webkit-appearance: none;
+          -webkit-border-radius: 0;
+          border-radius: 4px;
+          min-height: 44px; /* iOS touch target requirement */
+        }
+        
+        @media (max-width: 768px) {
+          .mobile-input:focus {
+            transform: none !important;
+            transition: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 
