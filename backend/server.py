@@ -15,6 +15,9 @@ import math
 import time
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+# Import Stripe payment integration
+from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
+
 # Import authentication
 from auth import (
     UserCreate, UserLogin, UserResponse, TokenResponse, PasswordReset, 
