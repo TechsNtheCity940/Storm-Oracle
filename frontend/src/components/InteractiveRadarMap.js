@@ -237,6 +237,153 @@ const StormCellMarkers = ({ stormCells, onStormClick }) => {
   return null;
 };
 
+const TornadoMarkers = ({ tornadoData = [], onTornadoClick }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    // Clear existing tornado markers
+    map.eachLayer((layer) => {
+      if (layer.options && layer.options.isTornadoMarker) {
+        map.removeLayer(layer);
+      }
+    });
+
+    // Add tornado markers
+    tornadoData.forEach((tornado) => {
+      // Extract intensity from EF scale or severity
+      const intensity = tornado.ef_scale || tornado.severity || tornado.intensity || 
+                      (tornado.alert_type === 'warning' ? 3 : 1);
+      
+      const isConfirmed = tornado.confirmed || tornado.alert_type === 'warning' || 
+                         tornado.status === 'confirmed';
+
+      // Create custom HTML icon with rotating tornado
+      const icon = L.divIcon({
+        className: 'tornado-marker-container',
+        html: `
+          <div class="tornado-marker ${isConfirmed ? 'confirmed' : 'predicted'}" style="
+            --tornado-size: ${Math.max(20, Math.min(90, 20 + intensity * 15))}px;
+            --rotation-speed: ${Math.max(0.8, 3 - intensity * 0.4)}s;
+            --tornado-opacity: ${Math.min(1, 0.7 + intensity * 0.05)};
+          ">
+            <div class="tornado-icon">
+              <img 
+                src="/images/tornado-marker.png" 
+                alt="${isConfirmed ? 'Confirmed' : 'Predicted'} Tornado EF${intensity}"
+                class="tornado-image"
+              />
+            </div>
+            
+            <div class="intensity-badge">
+              EF${intensity}
+            </div>
+            
+            ${isConfirmed ? '<div class="danger-ring"></div>' : ''}
+            
+            <div class="status-dot ${isConfirmed ? 'confirmed-dot' : 'predicted-dot'}">
+            </div>
+          </div>
+        `,
+        iconSize: [Math.max(20, Math.min(90, 20 + intensity * 15)), Math.max(20, Math.min(90, 20 + intensity * 15))],
+        iconAnchor: [Math.max(10, Math.min(45, 10 + intensity * 7.5)), Math.max(10, Math.min(45, 10 + intensity * 7.5))]
+      });
+
+      const marker = L.marker([tornado.latitude || tornado.predicted_location?.lat, 
+                              tornado.longitude || tornado.predicted_location?.lng], { 
+        icon,
+        isTornadoMarker: true
+      }).addTo(map);
+
+      // Enhanced popup with tornado details
+      marker.bindPopup(`
+        <div class="tornado-popup" style="min-width: 250px;">
+          <div style="display: flex; align-items: center; margin-bottom: 12px;">
+            <div style="font-size: 24px; margin-right: 8px;">🌪️</div>
+            <div>
+              <h3 style="margin: 0; color: #1f2937; font-size: 16px;">
+                ${isConfirmed ? 'CONFIRMED' : 'PREDICTED'} TORNADO
+              </h3>
+              <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">
+                EF${intensity} Scale • ${isConfirmed ? 'Active Warning' : 'Forecast Model'}
+              </div>
+            </div>
+          </div>
+          
+          <div style="background: ${isConfirmed ? '#fef2f2' : '#fffbeb'}; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid ${isConfirmed ? '#ef4444' : '#f59e0b'};">
+            <div style="font-weight: bold; color: ${isConfirmed ? '#dc2626' : '#d97706'}; margin-bottom: 4px;">
+              ${isConfirmed ? '⚠️ IMMEDIATE DANGER' : '🔔 WEATHER ALERT'}
+            </div>
+            <div style="font-size: 13px; color: #374151;">
+              ${tornado.message || tornado.description || 
+                (isConfirmed ? 'Tornado confirmed on radar. Take shelter immediately!' : 
+                'Tornado development possible. Monitor conditions closely.')}
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 13px;">
+            <div>
+              <strong style="color: #374151;">Confidence:</strong><br>
+              <span style="color: ${tornado.confidence > 80 ? '#dc2626' : tornado.confidence > 60 ? '#d97706' : '#059669'};">
+                ${Math.round(tornado.confidence || (isConfirmed ? 95 : 65))}%
+              </span>
+            </div>
+            <div>
+              <strong style="color: #374151;">Wind Speed:</strong><br>
+              <span style="color: #374151;">${tornado.wind_speed || (intensity * 40 + 65)} mph</span>
+            </div>
+            <div>
+              <strong style="color: #374151;">Path Width:</strong><br>
+              <span style="color: #374151;">${tornado.path_width || (intensity * 150 + 50)} yards</span>
+            </div>
+            <div>
+              <strong style="color: #374141;">Time:</strong><br>
+              <span style="color: #374151;">${tornado.timestamp ? new Date(tornado.timestamp).toLocaleTimeString() : 'Real-time'}</span>
+            </div>
+          </div>
+          
+          ${tornado.estimated_touchdown_time || tornado.eta ? `
+            <div style="background: #fef3c7; padding: 8px; border-radius: 6px; margin-bottom: 12px;">
+              <div style="font-weight: bold; color: #92400e; font-size: 13px;">
+                ⏰ ${isConfirmed ? 'Touchdown Time' : 'Estimated Arrival'}
+              </div>
+              <div style="color: #92400e; font-size: 12px;">
+                ${tornado.estimated_touchdown_time ? new Date(tornado.estimated_touchdown_time).toLocaleString() : tornado.eta}
+              </div>
+            </div>
+          ` : ''}
+          
+          <div style="text-align: center; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+            <button onclick="window.focusTornado('${tornado.id || Math.random()}')" style="
+              background: ${isConfirmed ? '#dc2626' : '#d97706'};
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 6px;
+              cursor: pointer;
+              font-weight: bold;
+              font-size: 13px;
+              margin-right: 8px;
+            ">Focus on Map</button>
+            <button onclick="window.getTornadoDetails('${tornado.id || Math.random()}')" style="
+              background: #374151;
+              color: white;
+              border: none;
+              padding: 8px 16px;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 13px;
+            ">More Details</button>
+          </div>
+        </div>
+      `);
+
+      marker.on('click', () => onTornadoClick && onTornadoClick(tornado));
+    });
+  }, [map, tornadoData, onTornadoClick]);
+
+  return null;
+};
+
 const RadarStationMarkers = ({ radarStations, onStationClick, selectedStation }) => {
   const map = useMap();
 
