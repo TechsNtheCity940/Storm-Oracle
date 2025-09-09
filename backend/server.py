@@ -46,6 +46,280 @@ app = FastAPI(title="Storm Oracle - Weather Radar API")
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+# Database collections
+users_collection = db.users
+verification_tokens_collection = db.verification_tokens
+password_reset_tokens_collection = db.password_reset_tokens
+
+# Authentication endpoints
+@api_router.post("/auth/register", response_model=dict)
+async def register_user(user_data: UserCreate):
+    """Register a new user with email verification"""
+    try:
+        # Check if user already exists
+        existing_user = await users_collection.find_one({"email": user_data.email})
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Hash password
+        hashed_password = hash_password(user_data.password)
+        
+        # Create user document
+        user_id = str(uuid.uuid4())
+        verification_token = generate_verification_token()
+        
+        user_doc = {
+            "id": user_id,
+            "email": user_data.email,
+            "full_name": user_data.full_name,
+            "password_hash": hashed_password,
+            "email_verified": False,
+            "subscription_type": UserType.FREE,
+            "is_admin": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_login": None
+        }
+        
+        # Insert user
+        await users_collection.insert_one(user_doc)
+        
+        # Store verification token
+        await verification_tokens_collection.insert_one({
+            "token": verification_token,
+            "user_id": user_id,
+            "email": user_data.email,
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=24),
+            "created_at": datetime.now(timezone.utc)
+        })
+        
+        # Send verification email
+        await send_verification_email(user_data.email, verification_token, user_data.full_name)
+        
+        return {
+            "message": "User registered successfully. Please check your email for verification.",
+            "user_id": user_id,
+            "email": user_data.email
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Registration failed")
+
+@api_router.post("/auth/login", response_model=TokenResponse)
+async def login_user(login_data: UserLogin):
+    """Login user and return JWT tokens"""
+    try:
+        # Find user
+        user = await users_collection.find_one({"email": login_data.email})
+        if not user or not verify_password(login_data.password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Check if email is verified for premium features
+        if not user["email_verified"] and user["subscription_type"] != UserType.FREE:
+            raise HTTPException(status_code=401, detail="Please verify your email address")
+        
+        # Update last login
+        await users_collection.update_one(
+            {"id": user["id"]},
+            {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        # Create tokens
+        token_data = {"sub": user["id"], "email": user["email"]}
+        access_token = create_access_token(token_data)
+        refresh_token = create_refresh_token(token_data)
+        
+        # Create user response
+        user_response = UserResponse(
+            id=user["id"],
+            email=user["email"],
+            full_name=user["full_name"],
+            email_verified=user["email_verified"],
+            subscription_type=user["subscription_type"],
+            is_admin=user["is_admin"],
+            created_at=datetime.fromisoformat(user["created_at"])
+        )
+        
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user=user_response
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Login failed")
+
+@api_router.post("/auth/verify-email")
+async def verify_email(verification: EmailVerification):
+    """Verify user email address"""
+    try:
+        # Find verification token
+        token_doc = await verification_tokens_collection.find_one({"token": verification.token})
+        if not token_doc:
+            raise HTTPException(status_code=400, detail="Invalid verification token")
+        
+        # Check expiration
+        if datetime.now(timezone.utc) > token_doc["expires_at"]:
+            raise HTTPException(status_code=400, detail="Verification token expired")
+        
+        # Update user
+        await users_collection.update_one(
+            {"id": token_doc["user_id"]},
+            {"$set": {"email_verified": True}}
+        )
+        
+        # Delete verification token
+        await verification_tokens_collection.delete_one({"token": verification.token})
+        
+        return {"message": "Email verified successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email verification error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Email verification failed")
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(reset_data: PasswordReset):
+    """Send password reset email"""
+    try:
+        # Find user
+        user = await users_collection.find_one({"email": reset_data.email})
+        if not user:
+            # Don't reveal if email exists
+            return {"message": "If the email exists, a reset link has been sent"}
+        
+        # Generate reset token
+        reset_token = generate_verification_token()
+        
+        # Store reset token
+        await password_reset_tokens_collection.insert_one({
+            "token": reset_token,
+            "user_id": user["id"],
+            "email": user["email"],
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+            "created_at": datetime.now(timezone.utc)
+        })
+        
+        # Send reset email
+        await send_password_reset_email(user["email"], reset_token, user["full_name"])
+        
+        return {"message": "If the email exists, a reset link has been sent"}
+        
+    except Exception as e:
+        logger.error(f"Password reset error: {str(e)}")
+        return {"message": "If the email exists, a reset link has been sent"}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(reset_data: PasswordResetConfirm):
+    """Reset user password with token"""
+    try:
+        # Find reset token
+        token_doc = await password_reset_tokens_collection.find_one({"token": reset_data.token})
+        if not token_doc:
+            raise HTTPException(status_code=400, detail="Invalid reset token")
+        
+        # Check expiration
+        if datetime.now(timezone.utc) > token_doc["expires_at"]:
+            raise HTTPException(status_code=400, detail="Reset token expired")
+        
+        # Hash new password
+        new_password_hash = hash_password(reset_data.new_password)
+        
+        # Update user password
+        await users_collection.update_one(
+            {"id": token_doc["user_id"]},
+            {"$set": {"password_hash": new_password_hash}}
+        )
+        
+        # Delete reset token
+        await password_reset_tokens_collection.delete_one({"token": reset_data.token})
+        
+        return {"message": "Password reset successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Password reset confirmation error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Password reset failed")
+
+@api_router.post("/auth/admin-access")
+async def grant_admin_access(email: EmailStr, secret_code: str):
+    """Secret method to grant admin access"""
+    try:
+        if not check_admin_secret(email, secret_code):
+            raise HTTPException(status_code=403, detail="Invalid admin credentials")
+        
+        # Find and update user
+        result = await users_collection.update_one(
+            {"email": email},
+            {"$set": {
+                "is_admin": True,
+                "subscription_type": UserType.ADMIN,
+                "email_verified": True
+            }}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {"message": f"Admin access granted to {email}"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Admin access error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Admin access failed")
+
+@api_router.get("/auth/me", response_model=UserResponse)
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """Get current user information"""
+    try:
+        user = await users_collection.find_one({"id": current_user["user_id"]})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return UserResponse(
+            id=user["id"],
+            email=user["email"],
+            full_name=user["full_name"],
+            email_verified=user["email_verified"],
+            subscription_type=user["subscription_type"],
+            is_admin=user["is_admin"],
+            created_at=datetime.fromisoformat(user["created_at"])
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get user error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get user information")
+
+# Protected endpoint example
+@api_router.get("/premium/advanced-features")
+async def get_advanced_features(current_user: dict = Depends(get_current_user)):
+    """Get advanced features for premium users"""
+    user = await users_collection.find_one({"id": current_user["user_id"]})
+    
+    if not check_subscription_limits(user["subscription_type"], "advanced_features"):
+        raise HTTPException(status_code=403, detail="Premium subscription required")
+    
+    return {
+        "features": [
+            "Real-time tornado tracking",
+            "Advanced storm predictions",
+            "Historical radar data",
+            "Custom alert zones",
+            "API access",
+            "Priority support"
+        ]
+    }
+
 # Initialize Claude AI chat
 claude_chat = LlmChat(
     api_key=os.environ.get('EMERGENT_LLM_KEY'),
