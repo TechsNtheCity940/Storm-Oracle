@@ -286,12 +286,35 @@ class AtmosphericDataProcessor:
             # Create realistic random values within ranges
             value = np.random.uniform(min_val + (max_val - min_val) * 0.2, 
                                       min_val + (max_val - min_val) * 0.8)
-            mock_data[param] = torch.tensor([value], dtype=torch.float32)
+            mock_data[param] = torch.tensor([[value]], dtype=torch.float32)  # Add batch dimension
         
-        # Add composite indices
-        mock_data['composite_index'] = torch.tensor([5.0])
-        mock_data['supercell_composite'] = torch.tensor([3.0])
-        mock_data['tornado_composite'] = torch.tensor([2.5])
+        # Add composite indices with proper batch dimensions
+        mock_data['composite_index'] = torch.tensor([[5.0]])
+        mock_data['supercell_composite'] = torch.tensor([[3.0]])
+        mock_data['tornado_composite'] = torch.tensor([[2.5]])
+        
+        # Group parameters for ML model consistency
+        mock_data['cape'] = mock_data.get('cape', torch.tensor([[1500.0]]))
+        mock_data['wind_shear'] = torch.cat([
+            mock_data.get('shear_0_1km', torch.tensor([[10.0]])),
+            mock_data.get('shear_0_3km', torch.tensor([[20.0]])),
+            mock_data.get('shear_0_6km', torch.tensor([[30.0]])),
+            torch.tensor([[25.0]])  # deep layer proxy
+        ], dim=-1)
+        mock_data['helicity'] = torch.cat([
+            mock_data.get('helicity_0_1km', torch.tensor([[150.0]])),
+            mock_data.get('helicity_0_3km', torch.tensor([[250.0]]))
+        ], dim=-1)
+        mock_data['temperature'] = torch.cat([
+            mock_data.get('temperature_sfc', torch.tensor([[25.0]])),
+            mock_data.get('temperature_850', torch.tensor([[15.0]])),
+            mock_data.get('temperature_500', torch.tensor([[-15.0]]))
+        ], dim=-1)
+        mock_data['dewpoint'] = torch.cat([
+            mock_data.get('dewpoint_sfc', torch.tensor([[20.0]])),
+            mock_data.get('dewpoint_850', torch.tensor([[18.0]]))
+        ], dim=-1)
+        mock_data['pressure'] = mock_data.get('pressure_sfc', torch.tensor([[1012.0]])) / 1000
         
         return mock_data
 
