@@ -343,12 +343,20 @@ async def analyze_tornado_risk(station_id: str, data_type: str = "reflectivity")
         )
         
         # Store alert
-        await db.tornado_alerts.insert_one(alert.dict())
+        alert_dict = alert.dict()
+        await db.tornado_alerts.insert_one(alert_dict)
         
         return {
-            "alert": alert.dict(),
+            "alert": alert_dict,
             "ai_analysis": ai_response,
-            "station_info": station
+            "station_info": {
+                "station_id": station["station_id"],
+                "name": station["name"],
+                "latitude": station["latitude"],
+                "longitude": station["longitude"],
+                "elevation": station["elevation"],
+                "state": station["state"]
+            }
         }
         
     except Exception as e:
