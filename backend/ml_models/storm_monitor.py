@@ -208,7 +208,11 @@ class AutomatedStormMonitor:
             ai_analysis = await self.claude_chat.send_message(claude_message)
             
             # Create automated alert
-            from .tornado_predictor import TornadoAlert
+            # Import TornadoAlert from parent server module
+            import sys
+            import os
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            from server import TornadoAlert
             
             alert = TornadoAlert(
                 station_id=station_id,
