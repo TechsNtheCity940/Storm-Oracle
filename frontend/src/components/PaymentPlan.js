@@ -64,23 +64,30 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
 
   const planFeatures = {
     free: [
-      'National weather radar view',
-      'Basic storm alerts',
+      '🎯 Live 2D radar data access',
+      '📍 Manual/nearest radar selection',
+      '🗺️ All map controls (zoom, pan, fullscreen)',
+      '🎬 Radar animation (max 100 frames)',
+      '⚡ Up to 5x animation speed',
+      '🤖 Location-based AI predictions',
+      '👁️ Visual prediction data access',
       '139 NEXRAD station access',
-      'Standard radar data types',
+      'Auto-looping radar on app load',
       'Community support'
     ],
     premium: [
-      'Everything in Free tier',
-      'Real-time tornado tracking',
-      'Advanced storm predictions',
-      'Historical radar data access',
-      'Custom alert zones',
-      'Priority email support',
-      'API access (1000 calls/month)',
-      'Advanced radar data types',
-      'Full-screen mode',
-      'Animation controls'
+      '✨ Everything in Enhanced Free tier',
+      '🌪️ Advanced ML tornado predictions',
+      '📊 2D & 3D radar data types',
+      '♾️ Unlimited animation frames & speed',
+      '🎯 Real-time storm tracking',
+      '🚨 Enhanced AI alert system',
+      '💬 AI chatbot for weather queries',
+      '📈 Detailed prediction analytics',
+      '🎛️ Advanced radar controls',
+      '⚡ Priority support',
+      '📤 Data export capabilities',
+      '📋 Custom alert zones'
     ],
     enterprise: [
       'Everything in Premium',
