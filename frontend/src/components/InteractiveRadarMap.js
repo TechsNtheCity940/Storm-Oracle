@@ -301,7 +301,25 @@ const RadarStationMarkers = ({ radarStations, onStationClick, selectedStation })
         </div>
       `);
 
-      marker.on('click', () => onStationClick(station));
+      // Add click handler for the popup button
+      marker.on('popupopen', () => {
+        const selectButton = document.getElementById(`select-${station.station_id}`);
+        if (selectButton) {
+          selectButton.addEventListener('click', () => {
+            console.log('🎯 Station selected from popup:', station.station_id);
+            onStationClick(station);
+            map.closePopup();
+          });
+        }
+      });
+
+      // Also allow direct marker click (without popup)
+      marker.on('click', (e) => {
+        // Prevent event from propagating
+        L.DomEvent.stopPropagation(e);
+        console.log('📡 Station marker clicked:', station.station_id);
+        onStationClick(station);
+      });
     });
   }, [map, radarStations, onStationClick, selectedStation]);
 
