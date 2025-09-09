@@ -68,9 +68,6 @@ const COLOR_PALETTES = {
   }
 };
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
 // Fix for default markers
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
