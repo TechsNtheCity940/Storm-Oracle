@@ -265,11 +265,16 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
               <CardTitle className="text-white">Premium Annual</CardTitle>
             </div>
             <div className="text-3xl font-bold text-white">
-              $199.99<span className="text-lg text-slate-400">/year</span>
+              ${packages.premium_annual?.amount || 150.00}<span className="text-lg text-slate-400">/year</span>
             </div>
             <div className="text-sm text-green-400 font-semibold">
-              Save $39.89 vs monthly
+              Save ${((packages.premium_monthly?.amount || 15) * 12 - (packages.premium_annual?.amount || 150)).toFixed(0)} vs monthly
             </div>
+            {packages.premium_annual?.trial_days && trialStatus?.can_start_trial && (
+              <div className="text-sm text-green-400 font-semibold">
+                🎉 {packages.premium_annual.trial_days}-day free trial included!
+              </div>
+            )}
             <CardDescription className="text-slate-300">
               Best value for serious users
             </CardDescription>
