@@ -329,7 +329,7 @@ function App() {
             </Card>
           </div>
 
-          {/* Main Radar Display */}
+          {/* Main Interactive Radar Display */}
           <div className="lg:col-span-3 space-y-6">
             
             {/* Radar Controls */}
@@ -374,45 +374,48 @@ function App() {
                     {analyzing ? "Processing..." : "🌪️ Advanced ML Analysis"}
                   </Button>
 
-                  <div className="flex items-center space-x-2 text-white">
-                    <Cloud className="h-4 w-4" />
-                    <span className="text-sm">Live Weather Data</span>
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <div className="flex items-center space-x-2 text-white ml-auto">
+                    <div className={`w-2 h-2 rounded-full ${monitoringStatus.system_status?.monitoring_active ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                    <span className="text-sm">
+                      {monitoringStatus.system_status?.monitoring_active ? 'Auto-Monitoring Active' : 'Manual Mode'}
+                    </span>
+                    {stormCells.length > 0 && (
+                      <Badge variant="destructive" className="ml-2">
+                        {stormCells.length} Active Storms
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Radar Display */}
+            {/* Interactive Radar Map */}
             <Card className="bg-slate-800 border-slate-700">
               <CardHeader>
-                <CardTitle className="text-white">
-                  {selectedStation ? `${selectedStation.name} - ${radarType.charAt(0).toUpperCase() + radarType.slice(1)} Radar` : "Select a Radar Station"}
+                <CardTitle className="text-white flex items-center justify-between">
+                  <span>🌪️ Live Interactive Radar - Storm Oracle</span>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="outline" className="text-green-400 border-green-400">
+                      {radarStations.length} NEXRAD Stations
+                    </Badge>
+                    {monitoringStatus.active_storm_summary && (
+                      <Badge variant="destructive">
+                        {monitoringStatus.active_storm_summary.total_storms} Active Threats
+                      </Badge>
+                    )}
+                  </div>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                {radarData ? (
-                  <div className="relative">
-                    <img 
-                      src={radarData.radar_url} 
-                      alt={`${radarType} radar`}
-                      className="w-full h-96 object-contain bg-black rounded-lg"
-                      onError={(e) => {
-                        e.target.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0iIzFhMWExYSIvPgogIDx0ZXh0IHg9IjIwMCIgeT0iMTUwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM5Y2EzYWYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIFJhZGFyIERhdGEgQXZhaWxhYmxlPC90ZXh0Pgo8L3N2Zz4K";
-                      }}
-                    />
-                    <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded text-sm">
-                      {formatTimestamp(radarData.timestamp || new Date())}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="h-96 bg-slate-900 rounded-lg flex items-center justify-center">
-                    <div className="text-center text-slate-400">
-                      <Cloud className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>Select a radar station to view live weather data</p>
-                    </div>
-                  </div>
-                )}
+              <CardContent className="p-0">
+                <div className="h-[600px] relative">
+                  <InteractiveRadarMap
+                    radarStations={radarStations}
+                    selectedStation={selectedStation}
+                    onStationSelect={selectRadarStation}
+                    stormCells={stormCells}
+                    onStormClick={handleStormClick}
+                  />
+                </div>
               </CardContent>
             </Card>
 
