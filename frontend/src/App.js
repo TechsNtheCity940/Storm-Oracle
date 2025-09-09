@@ -283,7 +283,7 @@ function App() {
                   <Button 
                     onClick={analyzeForTornadoes} 
                     disabled={!selectedStation || analyzing}
-                    className="bg-red-600 hover:bg-red-700 text-white"
+                    className="bg-red-600 hover:bg-red-700 text-white mr-2"
                   >
                     {analyzing ? (
                       <Activity className="h-4 w-4 mr-2 animate-spin" />
@@ -291,6 +291,19 @@ function App() {
                       <Bot className="h-4 w-4 mr-2" />
                     )}
                     {analyzing ? "Analyzing..." : "AI Tornado Analysis"}
+                  </Button>
+
+                  <Button 
+                    onClick={runAdvancedMLAnalysis} 
+                    disabled={!selectedStation || analyzing}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    {analyzing ? (
+                      <Activity className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Zap className="h-4 w-4 mr-2" />
+                    )}
+                    {analyzing ? "Processing..." : "🌪️ Advanced ML Analysis"}
                   </Button>
 
                   <div className="flex items-center space-x-2 text-white">
