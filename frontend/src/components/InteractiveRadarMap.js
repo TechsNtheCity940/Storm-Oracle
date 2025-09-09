@@ -853,7 +853,7 @@ const InteractiveRadarMap = ({
         />
       </MapContainer>
 
-      {/* Enhanced CSS for radar visualization and animations */}
+      {/* Enhanced CSS for radar visualization, scrolling, and fullscreen */}
       <style jsx global>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
@@ -864,13 +864,46 @@ const InteractiveRadarMap = ({
           pointer-events: none;
         }
         
+        /* Scrollbar styling for controls */
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-track {
+          background: rgba(71, 85, 105, 0.3);
+          border-radius: 3px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.6);
+          border-radius: 3px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+          background: rgba(148, 163, 184, 0.8);
+        }
+        
+        /* Fullscreen map styles */
+        .radar-map.fullscreen {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          z-index: 9998 !important;
+        }
+        
         /* NEXRAD Reflectivity Color Filters */
         .radar-base_reflectivity-nexrad_reflectivity {
-          filter: hue-rotate(0deg) saturate(1.2) contrast(1.1);
+          filter: hue-rotate(0deg) saturate(1.2) contrast(1.1) brightness(1.1);
+        }
+        
+        .radar-hi_res_reflectivity-nexrad_reflectivity {
+          filter: hue-rotate(5deg) saturate(1.3) contrast(1.2) brightness(1.15);
         }
         
         .radar-base_reflectivity-high_contrast_reflectivity {
-          filter: hue-rotate(240deg) saturate(1.5) contrast(1.3);
+          filter: hue-rotate(240deg) saturate(1.5) contrast(1.3) brightness(1.1);
         }
         
         /* Velocity Color Filters */
@@ -878,8 +911,12 @@ const InteractiveRadarMap = ({
           filter: hue-rotate(120deg) saturate(1.3) contrast(1.2);
         }
         
+        .radar-hi_res_velocity-velocity_standard {
+          filter: hue-rotate(115deg) saturate(1.4) contrast(1.3);
+        }
+        
         .radar-storm_relative_velocity-velocity_storm {
-          filter: hue-rotate(180deg) saturate(1.4) contrast(1.3);
+          filter: hue-rotate(180deg) saturate(1.4) contrast(1.3) brightness(1.05);
         }
         
         /* MRMS Color Filters */
@@ -889,7 +926,7 @@ const InteractiveRadarMap = ({
         
         /* Composite Color Filters */
         .radar-composite_reflectivity-composite {
-          filter: hue-rotate(300deg) saturate(1.3) contrast(1.2) brightness(0.9);
+          filter: hue-rotate(300deg) saturate(1.3) contrast(1.2) brightness(0.95);
         }
         
         /* Echo Tops Color Filters */
@@ -902,17 +939,51 @@ const InteractiveRadarMap = ({
         }
         
         .radar-map .leaflet-control-attribution {
-          background: rgba(0, 0, 0, 0.7);
+          background: rgba(0, 0, 0, 0.8);
           color: white;
+          border-radius: 4px;
         }
         
-        /* Collapsible controls animation */
-        .controls-collapsed {
-          transform: translateX(-240px);
+        /* Fullscreen controls positioning */
+        .fullscreen-controls {
+          position: fixed;
+          top: 1rem;
+          left: 1rem;
+          z-index: 9999;
         }
         
-        .controls-expanded {
-          transform: translateX(0);
+        /* Loading overlay */
+        .radar-loading {
+          background: rgba(0, 0, 0, 0.3);
+          backdrop-filter: blur(2px);
+        }
+        
+        /* Enhanced map markers */
+        .storm-marker {
+          transition: all 0.3s ease;
+        }
+        
+        .storm-marker:hover {
+          transform: scale(1.2);
+          filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8));
+        }
+        
+        .station-marker {
+          transition: all 0.2s ease;
+        }
+        
+        .station-marker:hover {
+          transform: scale(1.1);
+        }
+        
+        /* Real-time data indicator */
+        @keyframes dataLive {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+        
+        .data-live-indicator {
+          animation: dataLive 2s infinite;
         }
       `}</style>
     </div>
