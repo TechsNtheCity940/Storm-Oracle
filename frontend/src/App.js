@@ -89,6 +89,13 @@ function App() {
     toast.info(`🌪️ ${storm.stationName}: ${storm.tornadoProbability}% tornado risk`);
   };
 
+  // Reload national radar when radar type changes (but only if no specific station is selected)
+  useEffect(() => {
+    if (!selectedStation) {
+      loadNationalRadar();
+    }
+  }, [radarType]);
+
   const loadRadarStations = async () => {
     try {
       const response = await axios.get(`${API}/radar-stations`);
