@@ -1115,49 +1115,60 @@ const InteractiveRadarMap = ({
               )}
 
               {/* Playback Controls */}
+              {/* Enhanced Timeline Scrubber */}
               <div className="space-y-2">
-                <label className="text-xs text-slate-400 font-medium">Animation Controls</label>
+                <label className="text-xs text-slate-400 font-medium flex items-center">
+                  <Zap className="h-3 w-3 mr-1" />
+                  Timeline Control Center
+                </label>
+                <TimelineScrubber
+                  totalFrames={radarFrames.length}
+                  currentFrame={currentFrame}
+                  onFrameChange={goToFrame}
+                  isPlaying={isPlaying}
+                  onPlayPause={togglePlayback}
+                  playbackSpeed={1000/playbackSpeed}
+                  onSpeedChange={(speed) => setPlaybackSpeed(1000/speed)}
+                  frameData={radarFrames}
+                />
+              </div>
+
+              {/* Quick Animation Controls */}
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400 font-medium">Quick Controls</label>
                 <div className="flex items-center space-x-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
                     onClick={() => goToFrame(0)}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="holo-button flex items-center gap-1 px-3 py-1 text-xs"
                     title="Go to First Frame"
                   >
                     <SkipBack className="h-3 w-3" />
-                  </Button>
+                  </button>
                   
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
                     onClick={togglePlayback}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="holo-button flex items-center gap-1 px-3 py-1 text-xs"
                     title={isPlaying ? "Pause Animation" : "Play Animation"}
                   >
                     {isPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                  </Button>
+                  </button>
                   
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
                     onClick={() => goToFrame(radarFrames.length - 1)}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="holo-button flex items-center gap-1 px-3 py-1 text-xs"
                     title="Go to Latest Frame"
                   >
                     <SkipForward className="h-3 w-3" />
-                  </Button>
+                  </button>
                   
-                  <Button
-                    size="sm"
-                    variant="outline"
+                  <button
                     onClick={() => loadRadarFrames(selectedStation?.station_id)}
                     disabled={isLoading}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="holo-button flex items-center gap-1 px-3 py-1 text-xs"
                     title="Refresh Radar Data"
                   >
                     <RotateCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-                  </Button>
+                  </button>
                 </div>
               </div>
 
