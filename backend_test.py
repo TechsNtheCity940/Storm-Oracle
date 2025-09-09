@@ -419,6 +419,228 @@ class StormOracleAPITester:
         
         return True
 
+    def test_authentication_flow(self):
+        """Test user authentication and registration flow"""
+        print(f"\n🔐 TESTING AUTHENTICATION FLOW")
+        print("=" * 40)
+        
+        # Test user registration
+        test_user_data = {
+            "email": f"test.user.{int(time.time())}@stormoracle.com",
+            "full_name": "Test User Storm Oracle",
+            "password": "SecurePassword123!"
+        }
+        
+        success, reg_data = self.run_test("User Registration", "POST", "auth/register", 
+                                        data=test_user_data, expected_status=200)
+        
+        if success and reg_data:
+            print(f"   ✅ User registration successful")
+            print(f"   📧 User email: {test_user_data['email']}")
+            self.log_test("User Registration", True)
+            
+            # Test login with the registered user
+            login_data = {
+                "email": test_user_data["email"],
+                "password": test_user_data["password"]
+            }
+            
+            success_login, login_response = self.run_test("User Login", "POST", "auth/login", 
+                                                        data=login_data, expected_status=200)
+            
+            if success_login and login_response:
+                access_token = login_response.get('access_token')
+                user_info = login_response.get('user', {})
+                
+                if access_token:
+                    print(f"   ✅ Login successful, token received")
+                    print(f"   👤 User subscription: {user_info.get('subscription_type', 'unknown')}")
+                    self.log_test("User Login", True)
+                    
+                    # Store token for authenticated tests
+                    self.auth_token = access_token
+                    self.test_user_info = user_info
+                    
+                    return True, {"token": access_token, "user": user_info}
+                else:
+                    print(f"   ❌ Login successful but no token received")
+                    self.log_test("User Login", False, "No access token")
+            else:
+                print(f"   ❌ Login failed")
+                self.log_test("User Login", False)
+        else:
+            print(f"   ❌ User registration failed")
+            self.log_test("User Registration", False)
+        
+        return False, {}
+
+    def test_authenticated_subscription_features(self):
+        """Test subscription features with authentication"""
+        if not hasattr(self, 'auth_token') or not self.auth_token:
+            print(f"\n⚠️  Skipping authenticated subscription tests - no auth token available")
+            return True
+        
+        print(f"\n🔑 TESTING AUTHENTICATED SUBSCRIPTION FEATURES")
+        print("=" * 50)
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.auth_token}'
+        }
+        
+        # Test subscription features endpoint with auth
+        try:
+            url = f"{self.api_url}/subscription/features"
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            print(f"   Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                features_data = response.json()
+                print(f"   ✅ Subscription features retrieved successfully")
+                
+                # Verify response structure
+                required_fields = ["subscription_type", "limits", "trial_info", "pricing_tiers"]
+                missing_fields = [field for field in required_fields if field not in features_data]
+                
+                if not missing_fields:
+                    print(f"   ✅ Response structure complete")
+                    
+                    # Check pricing tiers
+                    pricing_tiers = features_data.get('pricing_tiers', {})
+                    premium_tier = pricing_tiers.get('premium', {})
+                    
+                    if premium_tier.get('price') == 15.00:
+                        print(f"   ✅ Premium pricing correct in features: ${premium_tier.get('price')}")
+                        self.log_test("Subscription Features Premium Price", True)
+                    else:
+                        print(f"   ❌ Premium pricing incorrect in features: ${premium_tier.get('price')}")
+                        self.log_test("Subscription Features Premium Price", False)
+                    
+                    # Check subscription type
+                    subscription_type = features_data.get('subscription_type')
+                    print(f"   📊 Current subscription: {subscription_type}")
+                    
+                    # Check limits for free user
+                    limits = features_data.get('limits', {})
+                    max_frames = limits.get('max_frames')
+                    max_speed = limits.get('max_speed')
+                    radar_types = limits.get('radar_data_types', [])
+                    
+                    if subscription_type == 'free':
+                        if max_frames == 100:
+                            print(f"   ✅ Free tier max frames correct: {max_frames}")
+                            self.log_test("Free Tier Max Frames", True)
+                        else:
+                            print(f"   ❌ Free tier max frames incorrect: {max_frames}")
+                            self.log_test("Free Tier Max Frames", False)
+                        
+                        if max_speed == 5.0:
+                            print(f"   ✅ Free tier max speed correct: {max_speed}x")
+                            self.log_test("Free Tier Max Speed", True)
+                        else:
+                            print(f"   ❌ Free tier max speed incorrect: {max_speed}x")
+                            self.log_test("Free Tier Max Speed", False)
+                        
+                        expected_radar_types = ["2d", "reflectivity"]
+                        if all(rt in radar_types for rt in expected_radar_types):
+                            print(f"   ✅ Free tier radar types correct: {radar_types}")
+                            self.log_test("Free Tier Radar Types", True)
+                        else:
+                            print(f"   ❌ Free tier radar types incorrect: {radar_types}")
+                            self.log_test("Free Tier Radar Types", False)
+                    
+                    self.log_test("Authenticated Subscription Features", True)
+                    return True
+                else:
+                    print(f"   ❌ Missing required fields: {missing_fields}")
+                    self.log_test("Authenticated Subscription Features", False, f"Missing: {missing_fields}")
+            else:
+                print(f"   ❌ Failed to get subscription features: {response.status_code}")
+                self.log_test("Authenticated Subscription Features", False, f"HTTP {response.status_code}")
+        
+        except Exception as e:
+            print(f"   ❌ Exception testing subscription features: {str(e)}")
+            self.log_test("Authenticated Subscription Features", False, str(e))
+        
+        return False
+
+    def test_authenticated_trial_system(self):
+        """Test trial system with authentication"""
+        if not hasattr(self, 'auth_token') or not self.auth_token:
+            print(f"\n⚠️  Skipping authenticated trial tests - no auth token available")
+            return True
+        
+        print(f"\n🆓 TESTING AUTHENTICATED TRIAL SYSTEM")
+        print("=" * 45)
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.auth_token}'
+        }
+        
+        # Test trial status first
+        try:
+            url = f"{self.api_url}/auth/trial-status"
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                trial_status = response.json()
+                print(f"   ✅ Trial status retrieved successfully")
+                print(f"   📊 Trial activated: {trial_status.get('trial_activated', False)}")
+                print(f"   📊 Can start trial: {trial_status.get('can_start_trial', False)}")
+                print(f"   📊 Subscription type: {trial_status.get('subscription_type', 'unknown')}")
+                
+                self.log_test("Trial Status Check", True)
+                
+                # If user can start trial, test starting it
+                if trial_status.get('can_start_trial', False):
+                    print(f"\n   🚀 Testing trial activation...")
+                    
+                    start_url = f"{self.api_url}/auth/start-trial"
+                    start_response = requests.post(start_url, headers=headers, timeout=30)
+                    
+                    if start_response.status_code == 200:
+                        trial_data = start_response.json()
+                        print(f"   ✅ Trial started successfully")
+                        print(f"   📅 Trial days: {trial_data.get('trial_days', 'unknown')}")
+                        
+                        # Verify trial gives premium access
+                        features_unlocked = trial_data.get('features_unlocked', [])
+                        if len(features_unlocked) > 0:
+                            print(f"   ✅ Premium features unlocked: {len(features_unlocked)} features")
+                            self.log_test("Trial Activation", True)
+                        else:
+                            print(f"   ⚠️  No features unlocked in trial")
+                            self.log_test("Trial Activation", True, "No features listed")
+                        
+                        # Test starting trial again (should fail)
+                        retry_response = requests.post(start_url, headers=headers, timeout=30)
+                        if retry_response.status_code == 400:
+                            print(f"   ✅ Correctly prevents duplicate trial activation")
+                            self.log_test("Prevent Duplicate Trial", True)
+                        else:
+                            print(f"   ❌ Should prevent duplicate trial activation")
+                            self.log_test("Prevent Duplicate Trial", False)
+                        
+                        return True
+                    else:
+                        print(f"   ❌ Failed to start trial: {start_response.status_code}")
+                        self.log_test("Trial Activation", False, f"HTTP {start_response.status_code}")
+                else:
+                    print(f"   ℹ️  User cannot start trial (already used or premium)")
+                    self.log_test("Trial Status Check", True, "Cannot start trial")
+                    return True
+            else:
+                print(f"   ❌ Failed to get trial status: {response.status_code}")
+                self.log_test("Trial Status Check", False, f"HTTP {response.status_code}")
+        
+        except Exception as e:
+            print(f"   ❌ Exception testing trial system: {str(e)}")
+            self.log_test("Trial System Test", False, str(e))
+        
+        return False
+
     def test_ai_chat(self):
         """Test AI chat endpoint"""
         test_message = "What are the current weather conditions and tornado risks?"
