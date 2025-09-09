@@ -559,17 +559,6 @@ const InteractiveRadarMap = ({
               </span>
             )}
             <div className="flex items-center space-x-1">
-              {/* Fullscreen Toggle */}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={toggleFullscreen}
-                className="text-white hover:bg-slate-700 p-1"
-                title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-              >
-                {isFullscreen ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-              </Button>
-              
               {/* Collapse Toggle */}
               <Button
                 size="sm"
