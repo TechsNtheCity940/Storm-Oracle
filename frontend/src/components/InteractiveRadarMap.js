@@ -1448,22 +1448,20 @@ const InteractiveRadarMap = ({
         type={floatingPanel.type}
       />
 
-      {/* Interactive Map with Fullscreen Support */}
-      <MapContainer
-        center={mapCenter}
-        zoom={mapZoom}
-        style={{ 
-          height: isFullscreen ? '100vh' : '100%', 
-          width: '100%',
-          position: isFullscreen ? 'fixed' : 'relative',
-          top: isFullscreen ? 0 : 'auto',
-          left: isFullscreen ? 0 : 'auto',
-          zIndex: isFullscreen ? 9998 : 'auto'
-        }}
-        ref={mapRef}
-        className="radar-map"
-        zoomControl={false}  // Disable default zoom control to add custom positioned one
-      >
+      {/* Gaming-Tech Enhanced Interactive Map */}
+      <div className={`radar-map-container ${isFullscreen ? 'fixed inset-0 z-[9998]' : ''}`}>
+        <MapContainer
+          center={mapCenter}
+          zoom={mapZoom}
+          style={{ 
+            height: isFullscreen ? '100vh' : '100%', 
+            width: '100%',
+            position: 'relative'
+          }}
+          ref={mapRef}
+          className="radar-map"
+          zoomControl={false}  // Disable default zoom control to add custom positioned one
+        >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
