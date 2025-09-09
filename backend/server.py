@@ -255,13 +255,13 @@ async def startup_event():
     global storm_monitor
     await init_radar_stations()
     
-    # Initialize automated storm monitoring
-    storm_monitor = AutomatedStormMonitor(db, claude_chat)
+    # Initialize automated storm monitoring (disabled for debugging)
+    # storm_monitor = AutomatedStormMonitor(db, claude_chat)
     
-    # Start automated storm monitoring in background
-    asyncio.create_task(storm_monitor.start_monitoring())
+    # Start automated storm monitoring in background (disabled for debugging)
+    # asyncio.create_task(storm_monitor.start_monitoring())
     
-    logger.info("🌪️ Storm Oracle startup complete - Automated monitoring active")
+    logger.info("🌪️ Storm Oracle startup complete - Manual mode for debugging")
 
 # API Routes
 @api_router.get("/")
