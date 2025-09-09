@@ -390,7 +390,8 @@ async def get_radar_data(station_id: str, data_type: str = "reflectivity", times
         lat, lng = station["latitude"], station["longitude"]
         
         # Use our local proxy endpoint to avoid CORS issues
-        radar_url = f"{os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8001')}/api/radar-image/{station_id}?data_type={data_type}"
+        backend_url = os.environ.get('BACKEND_URL', 'https://weather-insight.preview.emergentagent.com')
+        radar_url = f"{backend_url}/api/radar-image/{station_id}?data_type={data_type}"
         
         # Create enhanced radar data response
         radar_data = RadarData(
