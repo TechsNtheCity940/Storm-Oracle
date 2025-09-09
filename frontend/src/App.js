@@ -616,346 +616,189 @@ function App() {
     return !subscription.features.includes(feature);
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <Toaster position="top-right" />
-      {/* Header */}
-      <header className="border-b border-slate-700 bg-slate-900/80 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-blue-600 rounded-lg">
-                <Target className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Storm Oracle</h1>
-                <p className="text-slate-400 text-sm">AI-Powered Tornado Prediction System</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <Badge variant={subscription.tier === "premium" ? "default" : "secondary"}>
-                {subscription.tier.charAt(0).toUpperCase() + subscription.tier.slice(1)}
-              </Badge>
-              
-              {subscription.tier === "free" && (
-                <Button onClick={upgradeSubscription} variant="outline" className="border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white">
-                  <Zap className="h-4 w-4 mr-2" />
-                  Upgrade to Premium
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+  // Render logic based on current view
+  const renderCurrentView = () => {
+    if (currentView === 'payment-success') {
+      return <PaymentSuccess />;
+    }
+    
+    if (!isAuthenticated && currentView !== 'pricing') {
+      return <LoginPage />;
+    }
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          
-          {/* Live Storm Monitoring */}
-          <div className="lg:col-span-1 space-y-6">
-            <Card className="bg-slate-800/95 border-slate-700 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <svg className="w-5 h-5 mr-2 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                  </svg>
-                  Storm Monitoring System
-                </CardTitle>
-                <CardDescription className="text-slate-400">
-                  AI-powered live storm tracking and analysis
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  {/* Active Threats Counter */}
-                  <div className="bg-slate-700/50 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-300 text-sm">Active Threats</span>
-                      <span className={`font-bold text-lg ${stormCells.length > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                        {stormCells.length}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Storm Details */}
-                  <div className="max-h-48 overflow-y-auto space-y-2">
-                    {stormCells.length > 0 ? (
-                      stormCells.map((storm, index) => (
-                        <div key={index} className="bg-slate-700/30 rounded-lg p-3 border-l-4 border-orange-400">
-                          <div className="flex justify-between items-start mb-1">
-                            <h4 className="text-white font-semibold text-sm">
-                              Storm Cell #{index + 1}
-                            </h4>
-                            <span className="text-xs text-slate-400">
-                              {new Date(storm.timestamp || Date.now()).toLocaleTimeString()}
+    switch (currentView) {
+      case 'pricing':
+        return <PaymentPlan user={user} onSubscriptionUpdate={getCurrentUser} />;
+      case 'account':
+        return <AccountPage />;
+      case 'radar':
+      default:
+        return (
+          <div className="flex-1 overflow-hidden">
+            {/* Main Storm Oracle Interface */}
+            <div className="h-full flex">
+              {/* Left Sidebar - Storm Monitoring */}
+              <div className="w-96 bg-slate-900/95 backdrop-blur-sm border-r border-slate-800 overflow-y-auto">
+                <div className="p-4 space-y-6">
+                  {/* Live Storm Monitoring */}
+                  <Card className="bg-slate-800/95 border-slate-700 backdrop-blur-sm">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                        </svg>
+                        Storm Monitoring System
+                      </CardTitle>
+                      <CardDescription className="text-slate-400">
+                        AI-powered live storm tracking and analysis
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-3">
+                        {/* Active Threats Counter */}
+                        <div className="bg-slate-700/50 rounded-lg p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-300 text-sm">Active Threats</span>
+                            <span className={`font-bold text-lg ${stormCells.length > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                              {stormCells.length}
                             </span>
                           </div>
-                          <div className="space-y-1 text-xs">
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Location:</span>
-                              <span className="text-white">
-                                {storm.latitude?.toFixed(2)}°, {storm.longitude?.toFixed(2)}°
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Intensity:</span>
-                              <span className={`font-semibold ${
-                                storm.intensity > 50 ? 'text-red-400' : 
-                                storm.intensity > 30 ? 'text-orange-400' : 'text-yellow-400'
-                              }`}>
-                                {storm.intensity?.toFixed(0)} dBZ
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Tornado Risk:</span>
-                              <span className={`font-semibold ${
-                                storm.tornado_probability > 0.7 ? 'text-red-400' : 
-                                storm.tornado_probability > 0.4 ? 'text-orange-400' : 'text-green-400'
-                              }`}>
-                                {((storm.tornado_probability || 0) * 100).toFixed(0)}%
-                              </span>
-                            </div>
-                            {storm.movement && (
-                              <div className="flex justify-between">
-                                <span className="text-slate-400">Movement:</span>
-                                <span className="text-white">
-                                  {storm.movement.direction}° at {storm.movement.speed} mph
-                                </span>
+                        </div>
+
+                        {/* Storm Details */}
+                        <div className="max-h-48 overflow-y-auto space-y-2">
+                          {stormCells.length > 0 ? (
+                            stormCells.map((storm, index) => (
+                              <div key={index} className="bg-slate-700/30 rounded-lg p-3 border-l-4 border-orange-400">
+                                <div className="flex justify-between items-start mb-1">
+                                  <h4 className="text-white font-semibold text-sm">
+                                    Storm Cell #{index + 1}
+                                  </h4>
+                                  <span className="text-xs text-slate-400">
+                                    {new Date(storm.timestamp || Date.now()).toLocaleTimeString()}
+                                  </span>
+                                </div>
+                                <div className="space-y-1 text-xs">
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-400">Location:</span>
+                                    <span className="text-white">
+                                      {storm.latitude?.toFixed(2)}°, {storm.longitude?.toFixed(2)}°
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-400">Intensity:</span>
+                                    <span className={`font-semibold ${
+                                      storm.intensity > 50 ? 'text-red-400' : 
+                                      storm.intensity > 30 ? 'text-orange-400' : 'text-yellow-400'
+                                    }`}>
+                                      {storm.intensity?.toFixed(0)} dBZ
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-400">Tornado Risk:</span>
+                                    <span className={`font-semibold ${
+                                      storm.tornado_probability > 0.7 ? 'text-red-400' : 
+                                      storm.tornado_probability > 0.4 ? 'text-orange-400' : 'text-green-400'
+                                    }`}>
+                                      {((storm.tornado_probability || 0) * 100).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                  {storm.movement && (
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-400">Movement:</span>
+                                      <span className="text-white">
+                                        {storm.movement.direction}° at {storm.movement.speed} mph
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            )}
+                            ))
+                          ) : (
+                            <div className="text-center py-4">
+                              <div className="text-green-400 mb-2">
+                                <svg className="w-8 h-8 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                              <p className="text-slate-400 text-sm">No active storm threats detected</p>
+                              <p className="text-slate-500 text-xs mt-1">AI monitoring nationwide</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Monitoring Status */}
+                        <div className="bg-slate-700/30 rounded-lg p-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400 text-xs">ML System Status</span>
+                            <div className="flex items-center">
+                              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse mr-2"></div>
+                              <span className="text-green-400 text-xs font-semibold">ACTIVE</span>
+                            </div>
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1">
+                            Last scan: {new Date().toLocaleTimeString()}
                           </div>
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-4">
-                        <div className="text-green-400 mb-2">
-                          <svg className="w-8 h-8 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <p className="text-slate-400 text-sm">No active storm threats detected</p>
-                        <p className="text-slate-500 text-xs mt-1">AI monitoring nationwide</p>
                       </div>
-                    )}
-                  </div>
+                    </CardContent>
+                  </Card>
 
-                  {/* Monitoring Status */}
-                  <div className="bg-slate-700/30 rounded-lg p-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-xs">ML System Status</span>
-                      <div className="flex items-center">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse mr-2"></div>
-                        <span className="text-green-400 text-xs font-semibold">ACTIVE</span>
-                      </div>
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      Last scan: {new Date().toLocaleTimeString()}
-                    </div>
-                  </div>
+                  {/* Recent Tornado Alerts */}
+                  <Card className="bg-slate-800/95 border-slate-700 backdrop-blur-sm">
+                    <CardHeader>
+                      <CardTitle className="text-white flex items-center">
+                        <AlertTriangle className="w-5 h-5 mr-2 text-red-400" />
+                        Recent Alerts
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {tornadoAlerts.length > 0 ? (
+                        tornadoAlerts.slice(0, 3).map((alert) => (
+                          <div key={alert.id} className="bg-slate-700/30 rounded-lg p-3">
+                            <div className="flex justify-between items-start mb-1">
+                              <span className="text-white font-semibold text-sm">{alert.station_id}</span>
+                              <Badge variant="destructive" className="text-xs">
+                                {alert.threat_level}
+                              </Badge>
+                            </div>
+                            <p className="text-slate-300 text-xs mb-2">{alert.analysis}</p>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-slate-400">Confidence:</span>
+                              <span className="text-yellow-400">{(alert.confidence * 100).toFixed(0)}%</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-slate-400 text-sm">No recent alerts</p>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Tornado Alerts */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <AlertTriangle className="h-5 w-5 mr-2 text-red-500" />
-                  Recent Alerts
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {tornadoAlerts.slice(0, 5).map((alert) => (
-                    <Alert key={alert.id} className="bg-slate-700 border-slate-600">
-                      <AlertTriangle className={`h-4 w-4 ${getStormIntensityColor(alert.severity)}`} />
-                      <AlertTitle className="text-white">
-                        {alert.alert_type.toUpperCase()} - {alert.station_id}
-                      </AlertTitle>
-                      <AlertDescription className="text-slate-300 text-xs">
-                        Confidence: {alert.confidence}% | {formatTimestamp(alert.timestamp)}
-                      </AlertDescription>
-                    </Alert>
-                  ))}
-                  {tornadoAlerts.length === 0 && (
-                    <p className="text-slate-400 text-sm text-center py-4">No recent alerts</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+              {/* Main Radar Display */}
+              <div className="flex-1 relative">
+                <InteractiveRadarMap
+                  selectedStation={selectedStation}
+                  onStationSelect={selectRadarStation}
+                  stormCells={stormCells}
+                  onStormClick={(storm) => console.log('Storm clicked:', storm)}
+                  radarStations={radarStations}
+                  radarData={radarData}
+                />
+              </div>
+            </div>
           </div>
+        );
+    }
+  };
 
-          {/* Main Interactive Radar Display */}
-          <div className="lg:col-span-3 space-y-6">
-            
-            {/* Radar Controls */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardContent className="p-4">
-                <div className="flex flex-wrap items-center gap-4">
-                  <Select value={radarType} onValueChange={setRadarType}>
-                    <SelectTrigger className="w-48 bg-slate-700 border-slate-600 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-600">
-                      <SelectItem value="reflectivity" className="text-white">Reflectivity</SelectItem>
-                      <SelectItem value="velocity" className="text-white" disabled={isPremiumFeature("advanced_radar")}>
-                        Velocity {isPremiumFeature("advanced_radar") && "(Premium)"}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Button 
-                    onClick={analyzeForTornadoes} 
-                    disabled={!selectedStation || analyzing}
-                    className="bg-red-600 hover:bg-red-700 text-white mr-2"
-                  >
-                    {analyzing ? (
-                      <Activity className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Bot className="h-4 w-4 mr-2" />
-                    )}
-                    {analyzing ? "Analyzing..." : "AI Tornado Analysis"}
-                  </Button>
-
-                  <Button 
-                    onClick={runAdvancedMLAnalysis} 
-                    disabled={!selectedStation || analyzing}
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    {analyzing ? (
-                      <Activity className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Zap className="h-4 w-4 mr-2" />
-                    )}
-                    {analyzing ? "Processing..." : "🌪️ Advanced ML Analysis"}
-                  </Button>
-
-                  <div className="flex items-center space-x-2 text-white ml-auto">
-                    <div className={`w-2 h-2 rounded-full ${monitoringStatus.system_status?.monitoring_active ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                    <span className="text-sm">
-                      {monitoringStatus.system_status?.monitoring_active ? 'Auto-Monitoring Active' : 'Manual Mode'}
-                    </span>
-                    {stormCells.length > 0 && (
-                      <Badge variant="destructive" className="ml-2">
-                        {stormCells.length} Active Storms
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Interactive Radar Map */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center justify-between">
-                  <span>🌪️ Live Interactive Radar - Storm Oracle</span>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="text-green-400 border-green-400">
-                      {radarStations.length} NEXRAD Stations
-                    </Badge>
-                    {monitoringStatus.active_storm_summary && (
-                      <Badge variant="destructive">
-                        {monitoringStatus.active_storm_summary.total_storms} Active Threats
-                      </Badge>
-                    )}
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="h-[600px] relative">
-                  <InteractiveRadarMap
-                    radarStations={radarStations}
-                    selectedStation={selectedStation}
-                    onStationSelect={selectRadarStation}
-                    stormCells={stormCells}
-                    onStormClick={handleStormClick}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* AI Chat (Premium Feature) */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center justify-between">
-                  <div className="flex items-center">
-                    <Bot className="h-5 w-5 mr-2" />
-                    AI Weather Assistant
-                  </div>
-                  {isPremiumFeature("ai_chatbot") && (
-                    <Badge variant="outline" className="text-orange-400 border-orange-400">Premium</Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex space-x-2">
-                  <Input
-                    placeholder={isPremiumFeature("ai_chatbot") ? "Upgrade to Premium to chat with AI..." : "Ask about weather conditions..."}
-                    value={chatMessage}
-                    onChange={(e) => setChatMessage(e.target.value)}
-                    disabled={isPremiumFeature("ai_chatbot") || loading}
-                    className="bg-slate-700 border-slate-600 text-white placeholder-slate-400"
-                    onKeyPress={(e) => e.key === 'Enter' && handleChatSubmit()}
-                  />
-                  <Button 
-                    onClick={handleChatSubmit} 
-                    disabled={isPremiumFeature("ai_chatbot") || loading || !chatMessage.trim()}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    <Bot className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                {chatResponse && (
-                  <div className="p-4 bg-slate-700 rounded-lg">
-                    <p className="text-white text-sm">{chatResponse}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* Features Overview */}
-        <div className="mt-12">
-          <h2 className="text-2xl font-bold text-white mb-6 text-center">Advanced Tornado Prediction Features</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-slate-800 border-slate-700 text-center">
-              <CardContent className="p-6">
-                <Target className="h-8 w-8 mx-auto mb-3 text-blue-500" />
-                <h3 className="text-white font-semibold">Hook Echo Detection</h3>
-                <p className="text-slate-400 text-sm mt-2">AI identifies hook-shaped radar signatures indicating tornado formation</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-slate-800 border-slate-700 text-center">
-              <CardContent className="p-6">
-                <Activity className="h-8 w-8 mx-auto mb-3 text-green-500" />
-                <h3 className="text-white font-semibold">Velocity Couplets</h3>
-                <p className="text-slate-400 text-sm mt-2">Detect rotating air masses through Doppler velocity analysis</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-slate-800 border-slate-700 text-center">
-              <CardContent className="p-6">
-                <AlertTriangle className="h-8 w-8 mx-auto mb-3 text-red-500" />
-                <h3 className="text-white font-semibold">Early Warning System</h3>
-                <p className="text-slate-400 text-sm mt-2">Advanced predictions give critical time for safety preparations</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-slate-800 border-slate-700 text-center">
-              <CardContent className="p-6">
-                <Shield className="h-8 w-8 mx-auto mb-3 text-purple-500" />
-                <h3 className="text-white font-semibold">Path Prediction</h3>
-                <p className="text-slate-400 text-sm mt-2">AI forecasts tornado paths and touchdown locations</p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
+  return (
+    <div className="min-h-screen bg-black text-white flex flex-col">
+      <NavigationHeader />
+      {renderCurrentView()}
+      <Toaster />
     </div>
   );
 }
