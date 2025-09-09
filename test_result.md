@@ -272,7 +272,10 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Update frontend pricing to match backend $15/month"
+    - "Integrate free trial UI components"
+    - "Update free tier feature descriptions"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -282,3 +285,5 @@ agent_communication:
     message: "Implementing updated pricing model and subscription features. Updated premium pricing to $15/month, enhanced free tier with live 2D radar and all map controls, implemented 7-day free trial system with new endpoints for managing trial status and activation."
   - agent: "testing"
     message: "✅ COMPREHENSIVE TESTING COMPLETE: All subscription and pricing system requirements verified working. Fixed critical backend .env configuration issue (BACKEND_URL/STRIPE_API_KEY concatenation). All 4 high-priority backend tasks are fully functional: 1) Premium pricing $15/month ✓, 2) Enhanced free tier with 100 frames/5x speed ✓, 3) 7-day trial system with duplicate prevention ✓, 4) Subscription features endpoint with complete response structure ✓. Authentication flow tested and working. Ready for production use."
+  - agent: "testing"
+    message: "🚨 FRONTEND INTEGRATION ISSUES FOUND: Backend subscription system works perfectly, but frontend has critical integration problems: 1) PRICING MISMATCH: Frontend shows $19.99/$199.99 (hardcoded) instead of backend's $15.00/$150.00, 2) MISSING TRIAL UI: No trial activation buttons or status displays despite backend trial system working, 3) MISSING ENHANCED FREE TIER: No messaging about enhanced free features (live 2D radar, 100 frames, 5x speed). Payment flow redirects to login correctly. Backend API accessible and returns correct data but frontend doesn't use it."
