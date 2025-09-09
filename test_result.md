@@ -125,43 +125,52 @@ backend:
 
 frontend:
   - task: "Move map zoom controls to top-right of map"
-    implemented: false
-    working: false
+    implemented: true
+    working: true
     file: "/app/frontend/src/components/InteractiveRadarMap.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Need to move Leaflet zoom controls from default top-left to top-right position"
+      - working: true
+        agent: "main"
+        comment: "✅ FIXED: Added CustomZoomControls component that positions Leaflet zoom controls at top-right. Disabled default zoom control and implemented custom positioned control using L.control.zoom({ position: 'topright' })"
 
   - task: "Move fullscreen button to bottom-left of map"
-    implemented: false
-    working: false
+    implemented: true
+    working: true
     file: "/app/frontend/src/components/InteractiveRadarMap.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Fullscreen button currently in control panel, needs to be moved to bottom-left corner of map"
+      - working: true
+        agent: "main"
+        comment: "✅ FIXED: Moved fullscreen button to standalone position at bottom-left of map. Removed from control panel header and positioned as fixed button using absolute positioning with z-index 1001"
 
   - task: "Make collapsible control panel scrollable"
-    implemented: false
-    working: false
+    implemented: true
+    working: true
     file: "/app/frontend/src/components/InteractiveRadarMap.js"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
         comment: "Control panel needs to be scrollable to prevent UI overflow"
+      - working: true
+        agent: "main"
+        comment: "✅ FIXED: Enhanced control panel with dynamic height and proper scroll behavior. Added style maxHeight calculations for fullscreen vs normal mode and improved overflow-y-auto styling with custom scrollbar"
 
   - task: "Fix radar visual data overlay display"
-    implemented: false
+    implemented: true
     working: false
     file: "/app/frontend/src/components/InteractiveRadarMap.js"
     stuck_count: 0
@@ -171,6 +180,9 @@ frontend:
       - working: false
         agent: "main"
         comment: "RadarOverlay component not displaying actual radar imagery. User reports no visual radar data despite API working."
+      - working: false
+        agent: "main"
+        comment: "Backend radar API now fixed and returns working URLs. Frontend RadarOverlay component needs testing to verify it can now display the working radar imagery. Fixed JavaScript errors with coordinate handling using optional chaining."
 
 metadata:
   created_by: "main_agent"
