@@ -283,50 +283,84 @@ const InteractiveRadarMap = ({
   // Enhanced radar frames loading with real data
   const loadRadarFrames = useCallback(async (stationId = null, frames = frameCount) => {
     setIsLoading(true);
+    console.log('Loading radar frames for station:', stationId, 'dataType:', dataType);
+    
     try {
       let radarFrames = [];
       
       if (stationId && selectedStation) {
-        // Load station-specific radar data
-        for (let i = 0; i < frames; i++) {
-          const timeOffset = i * 10 * 60 * 1000; // 10 minutes apart
-          const timestamp = Date.now() - timeOffset;
+        console.log('Loading station-specific radar data for:', selectedStation.name);
+        
+        // First, get current radar data to ensure we have a working URL
+        try {
+          const currentResponse = await axios.get(`${API}/radar-data/${stationId}?data_type=${dataType}`);
+          console.log('Current radar response:', currentResponse.data);
           
-          try {
-            // Try to get real radar data from our API
-            const response = await axios.get(`${API}/radar-data/${stationId}?data_type=${dataType}&timestamp=${timestamp}`);
+          setRealRadarData(currentResponse.data);
+          
+          // Create current frame
+          const currentFrame = {
+            timestamp: Date.now(),
+            frameIndex: frames - 1,
+            imageUrl: currentResponse.data.radar_url,
+            bounds: {
+              north: currentResponse.data.coordinates.lat + 2,
+              south: currentResponse.data.coordinates.lat - 2,
+              east: currentResponse.data.coordinates.lon + 2,
+              west: currentResponse.data.coordinates.lon - 2
+            },
+            stationData: currentResponse.data
+          };
+          
+          radarFrames.push(currentFrame);
+          
+          // Load historical frames for animation
+          for (let i = 1; i < frames; i++) {
+            const timeOffset = i * 10 * 60 * 1000; // 10 minutes apart
+            const timestamp = Date.now() - timeOffset;
             
-            radarFrames.push({
-              timestamp,
-              frameIndex: frames - i - 1,
-              imageUrl: response.data.radar_url,
-              bounds: {
-                north: selectedStation.latitude + 3,
-                south: selectedStation.latitude - 3,
-                east: selectedStation.longitude + 3,
-                west: selectedStation.longitude - 3
-              },
-              stationData: response.data
-            });
-          } catch (error) {
-            // Fallback to constructed URLs if API fails
-            const radarTypeCode = dataType === 'base_velocity' ? '1' : '0';
-            const imageUrl = `https://radar.weather.gov/ridge/lite/${stationId.toLowerCase()}_${radarTypeCode}.gif?${timestamp}`;
-            
-            radarFrames.push({
-              timestamp,
-              frameIndex: frames - i - 1,
-              imageUrl,
-              bounds: {
-                north: selectedStation.latitude + 3,
-                south: selectedStation.latitude - 3,
-                east: selectedStation.longitude + 3,
-                west: selectedStation.longitude - 3
-              }
-            });
+            try {
+              const response = await axios.get(`${API}/radar-data/${stationId}?data_type=${dataType}&timestamp=${timestamp}`);
+              
+              radarFrames.unshift({
+                timestamp,
+                frameIndex: frames - i - 1,
+                imageUrl: response.data.radar_url,
+                bounds: currentFrame.bounds,
+                stationData: response.data
+              });
+            } catch (error) {
+              // Use fallback URL for historical frames
+              console.log('Using fallback for frame', i);
+              const radarTypeCode = dataType === 'base_velocity' ? '1' : '0';
+              const imageUrl = `https://radar.weather.gov/ridge/lite/${stationId.toLowerCase()}_${radarTypeCode}.gif?${timestamp}`;
+              
+              radarFrames.unshift({
+                timestamp,
+                frameIndex: frames - i - 1,
+                imageUrl,
+                bounds: currentFrame.bounds
+              });
+            }
           }
+        } catch (error) {
+          console.error('Error loading current radar data:', error);
+          // Create fallback current frame
+          const fallbackFrame = {
+            timestamp: Date.now(),
+            frameIndex: 0,
+            imageUrl: `https://radar.weather.gov/ridge/lite/${stationId.toLowerCase()}_0.gif?${Date.now()}`,
+            bounds: {
+              north: selectedStation.latitude + 2,
+              south: selectedStation.latitude - 2,
+              east: selectedStation.longitude + 2,
+              west: selectedStation.longitude - 2
+            }
+          };
+          radarFrames.push(fallbackFrame);
         }
       } else {
+        console.log('Loading national radar data');
         // Load national radar data
         try {
           const response = await axios.get(`${API}/radar-frames/national?frames=${frames}&data_type=${dataType}`);
@@ -336,6 +370,7 @@ const InteractiveRadarMap = ({
             throw new Error('No frames in response');
           }
         } catch (error) {
+          console.log('Using fallback national radar');
           // Generate national radar frames with real URLs
           for (let i = 0; i < frames; i++) {
             const timeOffset = i * 10 * 60 * 1000;
@@ -344,7 +379,7 @@ const InteractiveRadarMap = ({
             radarFrames.push({
               timestamp,
               frameIndex: frames - i - 1,
-              imageUrl: `https://radar.weather.gov/ridge/RadarImg/N0R/USA_0.gif?${timestamp}`,
+              imageUrl: `https://tilecache.rainviewer.com/v2/radar/${Math.floor(timestamp/1000)}/256/4/8/5/2/1_1.png`,
               bounds: {
                 north: 50,
                 south: 20,
@@ -356,12 +391,12 @@ const InteractiveRadarMap = ({
         }
       }
       
-      setRadarFrames(radarFrames.reverse()); // Oldest to newest
+      console.log('Loaded', radarFrames.length, 'radar frames');
+      setRadarFrames(radarFrames);
       setCurrentFrame(radarFrames.length - 1); // Start with most recent
       
     } catch (error) {
       console.error('Error loading radar frames:', error);
-      // Create minimal fallback
       setRadarFrames([]);
     }
     setIsLoading(false);
