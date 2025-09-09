@@ -283,7 +283,7 @@ function App() {
                   <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
                     <SelectValue placeholder="Choose radar station..." />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-600">
+                  <SelectContent className="bg-slate-800 border-slate-600 z-[1002] max-h-60 overflow-y-auto">
                     {radarStations.map((station) => (
                       <SelectItem key={station.station_id} value={station.station_id} className="text-white hover:bg-slate-700">
                         {station.station_id} - {station.name}, {station.state}
