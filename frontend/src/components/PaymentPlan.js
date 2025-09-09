@@ -101,7 +101,7 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
     try {
       const token = localStorage.getItem('storm_oracle_token');
       if (!token) {
-        alert('Please login to start trial');
+        console.error('Please login to start trial');
         return;
       }
 
