@@ -101,16 +101,15 @@ function App() {
     }
   };
 
-  const selectRadarStation = async (stationId) => {
+  const selectRadarStation = async (station) => {
     setLoading(true);
     try {
-      const stationResponse = await axios.get(`${API}/radar-stations/${stationId}`);
-      setSelectedStation(stationResponse.data);
+      setSelectedStation(station);
       
-      const radarResponse = await axios.get(`${API}/radar-data/${stationId}?data_type=${radarType}`);
+      const radarResponse = await axios.get(`${API}/radar-data/${station.station_id}?data_type=${radarType}`);
       setRadarData(radarResponse.data);
       
-      toast.success(`Connected to ${stationResponse.data.name} radar`);
+      toast.success(`Connected to ${station.name} radar`);
     } catch (error) {
       console.error("Error selecting radar station:", error);
       toast.error("Failed to connect to radar station");
