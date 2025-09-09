@@ -293,33 +293,9 @@ async def get_radar_station(station_id: str):
         del station["_id"]
     return RadarStation(**station)
 
-async def get_rainviewer_timestamps():
-    """Get current available timestamps from RainViewer API"""
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get("https://tilecache.rainviewer.com/api/maps.json")
-            if response.status_code == 200:
-                data = response.json()
-                # Extract timestamps from the response
-                timestamps = []
-                for frame in data.get('radar', {}).get('past', []):
-                    timestamps.append(frame.get('time', 0))
-                for frame in data.get('radar', {}).get('nowcast', []):
-                    timestamps.append(frame.get('time', 0))
-                return sorted(timestamps)[-10:]  # Return last 10 timestamps
-    except Exception as e:
-        logger.error(f"Error fetching RainViewer timestamps: {str(e)}")
-    
-    # Fallback: generate recent timestamps (every 10 minutes for last 2 hours)
-    current_time = int(datetime.now(timezone.utc).timestamp())
-    timestamps = []
-    for i in range(12):  # 12 frames * 10 minutes = 2 hours
-        timestamps.append(current_time - (i * 600))  # 600 seconds = 10 minutes
-    return sorted(timestamps)
-
 @api_router.get("/radar-data/{station_id}")
 async def get_radar_data(station_id: str, data_type: str = "reflectivity", timestamp: Optional[int] = None):
-    """Get current radar data for a station using modern working APIs"""
+    """Get current radar data for a station using RainViewer (most reliable)"""
     try:
         # Get station coordinates
         station = await db.radar_stations.find_one({"station_id": station_id})
@@ -328,55 +304,52 @@ async def get_radar_data(station_id: str, data_type: str = "reflectivity", times
         
         lat, lng = station["latitude"], station["longitude"]
         
-        # Get valid RainViewer timestamps
-        valid_timestamps = await get_rainviewer_timestamps()
+        # Get valid RainViewer timestamps from their API
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                maps_response = await client.get("https://tilecache.rainviewer.com/api/maps.json")
+                if maps_response.status_code == 200:
+                    maps_data = maps_response.json()
+                    radar_frames = maps_data.get('radar', {}).get('past', [])
+                    if radar_frames:
+                        # Use the most recent frame
+                        latest_frame = radar_frames[-1]
+                        radar_timestamp = latest_frame.get('time', int(datetime.now(timezone.utc).timestamp()))
+                    else:
+                        radar_timestamp = int(datetime.now(timezone.utc).timestamp())
+                else:
+                    radar_timestamp = int(datetime.now(timezone.utc).timestamp())
+        except Exception:
+            radar_timestamp = int(datetime.now(timezone.utc).timestamp())
         
-        # Use provided timestamp or most recent available
+        # Override with provided timestamp if given
         if timestamp:
-            radar_timestamp = timestamp // 1000  # Convert from JS timestamp
-            # Find closest valid timestamp
-            radar_timestamp = min(valid_timestamps, key=lambda x: abs(x - radar_timestamp))
-        else:
-            radar_timestamp = valid_timestamps[-1] if valid_timestamps else int(datetime.now(timezone.utc).timestamp())
+            radar_timestamp = timestamp // 1000
         
-        # Generate RainViewer tile coordinates
+        # Generate RainViewer tile coordinates for zoom level 8 (good detail level)
         zoom_level = 8
         x_tile = int((lng + 180.0) / 360.0 * (1 << zoom_level))
         y_tile = int((1.0 - math.log(math.tan(lat * math.pi / 180.0) + 1.0 / math.cos(lat * math.pi / 180.0)) / math.pi) / 2.0 * (1 << zoom_level))
         
-        # Build working RainViewer URL (primary source)
-        rainviewer_url = f"https://tilecache.rainviewer.com/v2/radar/{radar_timestamp}/256/{zoom_level}/{x_tile}/{y_tile}/5/1_1.png"
+        # Build RainViewer URL - using intensity level 5 for high visibility
+        radar_url = f"https://tilecache.rainviewer.com/v2/radar/{radar_timestamp}/256/{zoom_level}/{x_tile}/{y_tile}/5/1_1.png"
         
-        # Build NOAA ImageServer URL (fallback)
-        noaa_url = f"https://mapservices.weather.noaa.gov/eventdriven/rest/services/radar/radar_base_reflectivity_time/ImageServer/exportImage?bbox={lng-2},{lat-2},{lng+2},{lat+2}&size=512,512&format=png&f=image"
-        
-        # Test RainViewer URL first
-        final_url = rainviewer_url
-        api_source = "RainViewer"
+        # Test the URL accessibility
         data_quality = "live"
-        
         try:
-            async with httpx.AsyncClient(timeout=8.0) as client:
-                response = await client.head(rainviewer_url)
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.head(radar_url)
                 if response.status_code != 200:
-                    # Try NOAA as fallback
-                    response = await client.head(noaa_url)
-                    if response.status_code == 200:
-                        final_url = noaa_url
-                        api_source = "NOAA ImageServer"
-                    else:
-                        # Keep RainViewer URL even if not tested successfully
-                        data_quality = "untested"
-        except Exception as e:
-            logger.warning(f"URL testing failed for {station_id}: {str(e)}")
+                    data_quality = "untested"
+        except Exception:
             data_quality = "untested"
         
         # Create enhanced radar data response
         radar_data = RadarData(
             station_id=station_id,
             data_type=data_type,
-            reflectivity_url=final_url if 'reflectivity' in data_type else None,
-            velocity_url=final_url if 'velocity' in data_type else None,
+            reflectivity_url=radar_url if 'reflectivity' in data_type else None,
+            velocity_url=radar_url if 'velocity' in data_type else None,
             timestamp=datetime.now(timezone.utc)
         )
         
@@ -387,17 +360,17 @@ async def get_radar_data(station_id: str, data_type: str = "reflectivity", times
         await db.radar_data.insert_one(radar_dict)
         
         return {
-            "radar_url": final_url,
+            "radar_url": radar_url,
             "station_id": station_id,
             "data_type": data_type,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "coordinates": {"lat": lat, "lon": lng},
-            "api_source": api_source,
+            "api_source": "RainViewer",
             "refresh_interval": 300,
             "zoom_level": zoom_level,
             "tile_coords": {"x": x_tile, "y": y_tile},
             "data_quality": data_quality,
-            "valid_timestamps": valid_timestamps[-5:],  # Include last 5 timestamps for client
+            "radar_timestamp": radar_timestamp,
             "coverage_area": {
                 "radius_km": 230,  # NEXRAD coverage
                 "center": {"lat": lat, "lon": lng}
@@ -407,7 +380,7 @@ async def get_radar_data(station_id: str, data_type: str = "reflectivity", times
     except Exception as e:
         logger.error(f"Error fetching radar data for {station_id}: {str(e)}")
         
-        # Enhanced fallback with working URL
+        # Enhanced fallback with working RainViewer URL
         station = await db.radar_stations.find_one({"station_id": station_id}) 
         if station:
             lat, lng = station["latitude"], station["longitude"]
