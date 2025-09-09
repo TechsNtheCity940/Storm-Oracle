@@ -435,11 +435,31 @@ const PaymentPlan = ({ user, onSubscriptionUpdate }) => {
                 )}
               </div>
               {user.subscription_type === 'free' && (
+                <div className="space-x-2">
+                  {trialStatus?.can_start_trial && (
+                    <Button 
+                      className="bg-purple-600 hover:bg-purple-700"
+                      onClick={handleStartTrial}
+                      disabled={loading}
+                    >
+                      {loading ? 'Starting...' : '🎉 Try Premium Free'}
+                    </Button>
+                  )}
+                  <Button 
+                    variant="outline"
+                    className="border-purple-600 text-purple-400 hover:bg-purple-600 hover:text-white"
+                    onClick={() => handleSubscribe('premium_monthly')}
+                  >
+                    Subscribe Now
+                  </Button>
+                </div>
+              )}
+              {user.subscription_type === 'trial' && trialStatus?.days_remaining <= 3 && (
                 <Button 
                   className="bg-purple-600 hover:bg-purple-700"
                   onClick={() => handleSubscribe('premium_monthly')}
                 >
-                  Upgrade Now
+                  Continue with Premium
                 </Button>
               )}
             </div>
