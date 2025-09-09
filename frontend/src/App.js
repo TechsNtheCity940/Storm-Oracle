@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
 import axios from "axios";
-import { MapPin, AlertTriangle, Bot, Zap, Cloud, Target, Shield, Activity } from "lucide-react";
+import { MapPin, AlertTriangle, Bot, Zap, Cloud, Target, Shield, Activity, Crown, User, Settings, CreditCard, LogOut, Menu, X } from "lucide-react";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
 import { Badge } from "./components/ui/badge";
