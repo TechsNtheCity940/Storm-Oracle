@@ -928,7 +928,7 @@ async def get_radar_data(station_id: str, data_type: str = "reflectivity", times
     """Get radar data with PyART image proxy URL (supports national and individual stations)"""
     try:
         # Define backend_url at the beginning
-        backend_url = os.environ.get('BACKEND_URL', 'https://weather-insight.preview.emergentagent.com')
+        backend_url = os.environ.get('BACKEND_URL', 'https://storm-tracker-9.preview.emergentagent.com')
         
         if station_id.upper() == "NATIONAL":
             # National radar view

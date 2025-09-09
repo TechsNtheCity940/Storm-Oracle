@@ -27,7 +27,7 @@ sudo supervisorctl status all
 
 # Test the application
 curl -s http://localhost:3000 | grep "Storm Oracle"
-curl -s https://weather-insight.preview.emergentagent.com/api/radar-stations | jq length
+curl -s https://storm-tracker-9.preview.emergentagent.com/api/radar-stations | jq length
 ```
 
 ### Step 2: Environment Configuration
