@@ -847,6 +847,48 @@ async def upgrade_subscription(user_id: str):
     )
     
     return {"message": "Subscription upgraded to premium", "features": premium_features, "tier": "premium"}
+    """Get user subscription status"""
+    subscription = await db.user_subscriptions.find_one({"user_id": user_id})
+    if not subscription:
+        # Create free tier subscription
+        free_subscription = UserSubscription(
+            user_id=user_id,
+            tier="free",
+            features=["basic_radar", "ai_alerts"]
+        )
+        subscription_dict = free_subscription.dict()
+        await db.user_subscriptions.insert_one(subscription_dict)
+        return subscription_dict
+    
+    # Remove MongoDB ObjectId before returning
+    if "_id" in subscription:
+        del subscription["_id"]
+    return subscription
+
+@api_router.post("/subscription/{user_id}/upgrade")
+async def upgrade_subscription(user_id: str):
+    """Upgrade user to premium subscription"""
+    premium_features = [
+        "basic_radar", "ai_alerts", "real_time_tracking", 
+        "advanced_radar", "ai_chatbot", "detailed_predictions", 
+        "historical_data", "tornado_paths"
+    ]
+    
+    expires_at = datetime.now(timezone.utc).replace(day=1, month=datetime.now().month + 1)  # Next month
+    
+    await db.user_subscriptions.update_one(
+        {"user_id": user_id},
+        {
+            "$set": {
+                "tier": "premium",
+                "features": premium_features,
+                "expires_at": expires_at
+            }
+        },
+        upsert=True
+    )
+    
+    return {"message": "Subscription upgraded to premium", "features": premium_features, "tier": "premium"}
 
 # Include the router in the main app
 app.include_router(api_router)
