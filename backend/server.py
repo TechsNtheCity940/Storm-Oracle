@@ -277,29 +277,78 @@ async def get_radar_station(station_id: str):
 
 @api_router.get("/radar-data/{station_id}")
 async def get_radar_data(station_id: str, data_type: str = "reflectivity"):
-    """Get current radar data for a station"""
-    # In a real implementation, this would fetch from NWS API
-    # For MVP, we'll return simulated URLs
-    base_url = "https://radar.weather.gov"
-    
-    if data_type == "reflectivity":
-        radar_url = f"{base_url}/ridge/lite/{station_id.lower()}_0.gif"
-    elif data_type == "velocity":
-        radar_url = f"{base_url}/ridge/lite/{station_id.lower()}_1.gif"
-    else:
-        radar_url = f"{base_url}/ridge/lite/{station_id.lower()}_0.gif"
-    
-    radar_data = RadarData(
-        station_id=station_id,
-        data_type=data_type,
-        reflectivity_url=radar_url if data_type == "reflectivity" else None,
-        velocity_url=radar_url if data_type == "velocity" else None
-    )
-    
-    # Store in database
-    await db.radar_data.insert_one(radar_data.dict())
-    
-    return {"radar_url": radar_url, "station_id": station_id, "data_type": data_type}
+    """Get current radar data for a station using RainViewer API"""
+    try:
+        # Get station coordinates
+        station = await db.radar_stations.find_one({"station_id": station_id})
+        if not station:
+            raise HTTPException(status_code=404, detail="Station not found")
+        
+        lat, lon = station["latitude"], station["longitude"]
+        
+        # Get current timestamp for real-time data
+        import time
+        current_time = int(time.time())
+        
+        # RainViewer API URLs for different data types
+        if data_type == "reflectivity":
+            # Precipitation/reflectivity layer
+            radar_url = f"https://tilecache.rainviewer.com/v2/radar/{current_time}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
+            # For specific location view
+            zoom = 8
+            x_tile = int((lon + 180.0) / 360.0 * (1 << zoom))
+            y_tile = int((1.0 - math.log(math.tan(lat * math.pi / 180.0) + 1.0 / math.cos(lat * math.pi / 180.0)) / math.pi) / 2.0 * (1 << zoom))
+            specific_radar_url = f"https://tilecache.rainviewer.com/v2/radar/{current_time}/256/{zoom}/{x_tile}/{y_tile}/2/1_1.png"
+        
+        elif data_type == "velocity":
+            # Wind/velocity layer (premium feature)
+            radar_url = f"https://tilecache.rainviewer.com/v2/wind/{current_time}/256/{{z}}/{{x}}/{{y}}/0/1_1.png"
+            zoom = 8
+            x_tile = int((lon + 180.0) / 360.0 * (1 << zoom))
+            y_tile = int((1.0 - math.log(math.tan(lat * math.pi / 180.0) + 1.0 / math.cos(lat * math.pi / 180.0)) / math.pi) / 2.0 * (1 << zoom))
+            specific_radar_url = f"https://tilecache.rainviewer.com/v2/wind/{current_time}/256/{zoom}/{x_tile}/{y_tile}/0/1_1.png"
+        
+        else:
+            # Default to precipitation
+            radar_url = f"https://tilecache.rainviewer.com/v2/radar/{current_time}/256/{{z}}/{{x}}/{{y}}/2/1_1.png"
+            specific_radar_url = radar_url
+        
+        # Create enhanced radar data response
+        radar_data = RadarData(
+            station_id=station_id,
+            data_type=data_type,
+            reflectivity_url=specific_radar_url if data_type == "reflectivity" else None,
+            velocity_url=specific_radar_url if data_type == "velocity" else None,
+            timestamp=datetime.now(timezone.utc)
+        )
+        
+        # Store in database with proper datetime handling
+        radar_dict = radar_data.dict()
+        if 'timestamp' in radar_dict and radar_dict['timestamp']:
+            radar_dict['timestamp'] = radar_dict['timestamp'].isoformat()
+        await db.radar_data.insert_one(radar_dict)
+        
+        return {
+            "radar_url": specific_radar_url,
+            "station_id": station_id,
+            "data_type": data_type,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "coordinates": {"lat": lat, "lon": lon},
+            "api_source": "RainViewer",
+            "refresh_interval": 300  # 5 minutes
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching radar data: {str(e)}")
+        # Fallback to NWS if RainViewer fails
+        fallback_url = f"https://radar.weather.gov/ridge/lite/{station_id.lower()}_0.gif"
+        return {
+            "radar_url": fallback_url,
+            "station_id": station_id,
+            "data_type": data_type,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "api_source": "NWS_Fallback"
+        }
 
 @api_router.post("/tornado-analysis")
 async def analyze_tornado_risk(station_id: str, data_type: str = "reflectivity"):
