@@ -1,370 +1,535 @@
 """
-PyART-based radar data processing for Storm Oracle
-Provides real-time national radar overlay and individual station processing
+Storm Oracle — Real Py-ART Radar (Radar Omega–style)
+---------------------------------------------------
+- Live NEXRAD L2 from AWS Open Data (anonymous S3)
+- Station PPI products & national composite grid
+- Products: base/hi-res reflectivity, base/hi-res velocity, storm-relative velocity,
+            spectrum width, ZDR, CC, KDP
+- Rotation visualization: az-shear proxy + couplet dots
+- Custom tornado markers (confirmed/predicted), size by intensity, optional spin
+- Optional overlays: lightning strikes, hail swaths/points, surface wind vectors
+- "Easy Mode": plain-English legend for non-experts
+
+Author: You + ChatGPT
 """
 
-import pyart
+import os, io, sys, math, logging, tempfile
+from datetime import datetime, timezone, timedelta
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from PIL import Image
-import io
-import requests
-import logging
-from datetime import datetime, timezone
-import asyncio
-import aiohttp
-import xarray as xr
-from cartopy import crs as ccrs
+from matplotlib.transforms import Affine2D
+import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from matplotlib.colors import ListedColormap
-import time
+
+# Prefer your local Py-ART path if provided (your note: F:/pyart)
+_LOCAL_PYART = r"F:/pyart"
+if os.path.isdir(_LOCAL_PYART) and _LOCAL_PYART not in sys.path:
+    sys.path.insert(0, _LOCAL_PYART)
+
+import pyart
+from pyart.graph import cm as pyart_cm
+
+try:
+    import boto3
+    from botocore import UNSIGNED
+    from botocore.client import Config
+except Exception:
+    boto3 = None
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# -------------------- Config --------------------
+
+AWS_BUCKET = "noaa-nexrad-level2"
+AWS_REGION = "us-east-1"
+
+DEFAULT_COMPOSITE_STATIONS = [
+    "KTLX","KFDR","KAMA","KDDC","KICT","KEAX","KSGF","KLSX","KDVN","KDMX","KOAX","KUEX",
+    "KLOT","KGRB","KMKX","KDTX","KCLE","KPBZ","KFCX","KLWX","KOKX","KBOX","KGYX","KCBW",
+    "KTLH","KJAX","KTBW","KAMX","KHGX","KEWX","KFWS","KABX","KRIW","KFTG","KRGX",
+    "KMAX","KATX","KRTX","KPOE","KLCH","KLIX"
+]
+
+# Field map
+FIELD = {
+    "base_reflectivity": "reflectivity",               # lowest tilt
+    "reflectivity_hr": "reflectivity",                 # plot with finer binning
+    "base_velocity": "velocity",
+    "velocity_hr": "velocity",
+    "storm_relative_velocity": "velocity",
+    "spectrum_width": "spectrum_width",
+    "zdr": "differential_reflectivity",
+    "cc": "cross_correlation_ratio",
+    "kdp": "specific_differential_phase",
+}
+
+# Colormaps (Radar-Omega vibe)
+CMAPS = {
+    "NWSRef": pyart_cm.NWSRef,
+    "HomeyerRainbow": pyart_cm.HomeyerRainbow,
+    "NWSStormClearReflectivity": pyart_cm.NWSStormClearReflectivity,
+    "BlueBrown12": pyart_cm.BlueBrown12,
+    "Carbone42": pyart_cm.Carbone42,
+    "NWSVelocity": pyart_cm.NWSVel,
+    "BuDRd18": pyart_cm.BuDRd18,
+    "BlueBrown18": pyart_cm.BlueBrown18,
+    "viridis": plt.cm.get_cmap("viridis"),
+    "twilight": plt.cm.get_cmap("twilight"),
+    "turbo": plt.cm.get_cmap("turbo"),
+}
+
+def _cmap(name: str):
+    return CMAPS.get(name, CMAPS["NWSRef"])
+
+def _now(fmt="%Y-%m-%d %H:%M:%S UTC"): return datetime.now(timezone.utc).strftime(fmt)
+
+def _aws_client():
+    if boto3 is None:
+        raise RuntimeError("Missing boto3/botocore: pip install boto3 botocore")
+    return boto3.client("s3", config=Config(signature_version=UNSIGNED), region_name=AWS_REGION)
+
+def _latest_key(station: str, max_age_h=6):
+    s3 = _aws_client()
+    now = datetime.utcnow()
+    for back in range(max_age_h+1):
+        dt = now - timedelta(hours=back)
+        prefix = f"{dt:%Y}/{station}/{station}{dt:%Y%m%d}"
+        r = s3.list_objects_v2(Bucket=AWS_BUCKET, Prefix=prefix)
+        objs = r.get("Contents", [])
+        if objs:
+            objs.sort(key=lambda o: o["LastModified"])
+            return objs[-1]["Key"]
+    return None
+
+def _read_l2(station: str):
+    key = _latest_key(station)
+    if not key: raise RuntimeError(f"No recent L2 on AWS for {station}")
+    s3 = _aws_client()
+    data = s3.get_object(Bucket=AWS_BUCKET, Key=key)["Body"].read()
+    radar = pyart.io.read_nexrad_archive(io.BytesIO(data))
+    return radar, key
+
+def _bytes(fig, dpi=170):
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight",
+                facecolor=fig.get_facecolor(), edgecolor="none")
+    plt.close(fig); buf.seek(0)
+    return buf.getvalue()
+
+def _add_features(ax, faint=True):
+    color, alpha, lw = ("gray", 0.25, 0.4) if faint else ("white", 0.6, 0.8)
+    ax.add_feature(cfeature.COASTLINE, edgecolor=color, linewidth=lw, alpha=alpha)
+    ax.add_feature(cfeature.BORDERS,   edgecolor=color, linewidth=lw, alpha=alpha)
+    ax.add_feature(cfeature.STATES,    edgecolor=color, linewidth=lw, alpha=alpha)
+
+def _gridliner(ax):
+    gl = ax.gridlines(draw_labels=True, color="white", alpha=0.25)
+    gl.top_labels = gl.right_labels = False
+    gl.xlabel_style = {"color":"white","size":8}
+    gl.ylabel_style = {"color":"white","size":8}
+
+# --------- Easy Mode text ---------
+
+def _ref_category(dbz):
+    if np.isnan(dbz): return "No echo"
+    if dbz < 10: return "Very light"
+    if dbz < 20: return "Light"
+    if dbz < 30: return "Moderate"
+    if dbz < 40: return "Heavy"
+    if dbz < 50: return "Very heavy"
+    if dbz < 60: return "Severe"
+    return "Extreme"
+
+# --------- Rotation helpers ---------
+
+def _storm_relative_velocity(radar, sweep_idx, storm_motion_uv):
+    """Return SRV field (array) given (u, v) m/s storm motion."""
+    vel = radar.fields["velocity"]["data"]
+    vel = vel if vel.ndim == 2 else vel[sweep_idx]
+
+    az = np.deg2rad(radar.azimuth["data"])  # per ray
+    # Build array of radial unit vectors (east, north)
+    ux = np.sin(az)[:, None]  # east component
+    uy = np.cos(az)[:, None]  # north component
+    u, v = storm_motion_uv
+    proj = u*ux + v*uy  # radial projection of storm motion
+    return vel - proj
+
+def _az_shear_proxy(radial_vel, gate_km=0.25):
+    """
+    Simple, fast azimuthal shear proxy from 3x3 finite differences.
+    Returns shear magnitude (m/s per km).
+    """
+    v = radial_vel.filled(np.nan) if hasattr(radial_vel, "filled") else np.array(radial_vel, dtype=float)
+    # central differences
+    dv_dr = np.abs(np.nan_to_num(v[:, 2:] - v[:, :-2]))  # along range
+    dv_da = np.abs(np.nan_to_num(v[2:, :] - v[:-2, :]))  # along azimuth
+    # pad back
+    dv_dr = np.pad(dv_dr, ((0,0),(1,1)), mode="edge")
+    dv_da = np.pad(dv_da, ((1,1),(0,0)), mode="edge")
+    # convert to per-km assuming gate_km spacing
+    shear = np.sqrt(dv_dr**2 + dv_da**2) / max(gate_km, 0.25)
+    return shear
+
+def _find_velocity_couplets(v, thresh_pair=45.0):
+    """
+    Find inbound/outbound adjacent maxima (very naive).
+    Returns list of (ray_idx, gate_idx).
+    """
+    arr = v.filled(np.nan) if hasattr(v, "filled") else np.array(v, float)
+    hits = []
+    for i in range(arr.shape[0]-1):
+        diff = arr[i+1] - arr[i]
+        # strong sign change neighboring gates (approx couplet)
+        j = np.nanargmax(np.abs(diff))
+        if np.isfinite(diff[j]) and np.abs(diff[j]) >= thresh_pair:
+            hits.append((i, j))
+    return hits[:10]  # cap
+
+# --------- Overlay helpers ---------
+
+def _draw_tornado_markers(ax, items, marker_path, colorize=None, spin=False):
+    """
+    items: list[dict] with keys lon, lat, intensity (EF-scale or 0..5), size_scale (optional)
+    colorize: (r,g,b) tint multiply in [0,1] or None
+    spin: if True, rotate ~intensity*angle for visual motion
+    """
+    if not items: return
+    try:
+        img = plt.imread(marker_path)  # supports PNG with alpha
+    except Exception as e:
+        ax.text(0.5,0.02,f"Marker load failed: {e}", transform=ax.transAxes,
+                ha="center", va="bottom", color="red")
+        return
+
+    for it in items:
+        lon, lat = it["lon"], it["lat"]
+        inten = float(it.get("intensity", 1.0))
+        size_scale = float(it.get("size_scale", 1.0))
+        # base size ~ 0.35 degrees at midlat * scale * intensity factor
+        base_deg = 0.35 * size_scale * (0.6 + 0.4*min(max(inten,0.2), 6))
+        extent = [lon - base_deg/2, lon + base_deg/2, lat - base_deg/2, lat + base_deg/2]
+
+        if colorize is not None and img.ndim == 3:
+            tint = np.array(colorize)[None,None,:]
+            rgba = img.copy()
+            rgba[..., :3] = np.clip(rgba[..., :3] * tint, 0, 1)
+            plot_img = rgba
+        else:
+            plot_img = img
+
+        im = ax.imshow(plot_img, extent=extent, transform=ccrs.PlateCarree(), zorder=20)
+        if spin:
+            angle = 30.0 * inten  # deg
+            trans_data = Affine2D().rotate_deg_around((extent[0]+extent[1])/2,
+                                                      (extent[2]+extent[3])/2,
+                                                      angle) + ax.transData
+            im.set_transform(trans_data)
+
+def _draw_lightning(ax, strikes):
+    """
+    strikes: list[dict] with lon, lat, age_sec(optional), amp(optional)
+    Visual: star markers with size by amplitude, alpha fades with age
+    """
+    if not strikes: return
+    lons = [s["lon"] for s in strikes]
+    lats = [s["lat"] for s in strikes]
+    amps = np.array([float(s.get("amp", 1.0)) for s in strikes])
+    ages = np.array([float(s.get("age_sec", 0.0)) for s in strikes])
+    sizes = 30 + 40*np.clip(amps/200.0, 0, 1)
+    alphas = np.clip(1.0 - ages/900.0, 0.2, 1.0)  # fade over 15 min
+    for lon, lat, sz, a in zip(lons, lats, sizes, alphas):
+        ax.plot(lon, lat, marker="*", markersize=sz/6, color="yellow",
+                markeredgecolor="white", alpha=a, transform=ccrs.PlateCarree(), zorder=15)
+
+def _draw_hail(ax, hail_points):
+    """
+    hail_points: list[dict] with lon, lat, mesh_mm or size_in
+    Visual: circles sized by hail diameter, colored cyan/white
+    """
+    if not hail_points: return
+    for h in hail_points:
+        lon, lat = h["lon"], h["lat"]
+        size_in = float(h.get("size_in", h.get("mesh_mm", 25.0)/25.4))
+        r = 0.15 * (0.5 + min(size_in, 4.0))  # deg; cap exaggeration
+        circ = plt.Circle((lon, lat), r, transform=ccrs.PlateCarree(),
+                          edgecolor="white", facecolor="cyan", alpha=0.35, lw=1.2, zorder=10)
+        ax.add_patch(circ)
+
+def _draw_wind(ax, vectors):
+    """
+    vectors: list[dict] with lon, lat, u, v (m/s)
+    Visual: barbs
+    """
+    if not vectors: return
+    lons = np.array([w["lon"] for w in vectors])
+    lats = np.array([w["lat"] for w in vectors])
+    u = np.array([w["u"] for w in vectors])
+    v = np.array([w["v"] for w in vectors])
+    ax.barbs(lons, lats, u, v, transform=ccrs.PlateCarree(), length=5, color="white", zorder=12)
+
+# -------------------- Main class --------------------
 
 class RadarProcessor:
-    """PyART-based radar data processor for Storm Oracle"""
-    
-    def __init__(self):
-        self.nexrad_stations = {}
-        self.national_composite = None
-        self.last_update = None
-        
-    async def get_national_radar_composite(self, data_type="reflectivity", frame_time=None):
-        """Generate national radar composite using PyART with smooth temporal interpolation"""
-        try:
-            # Create figure for national view
-            fig, ax = plt.subplots(1, 1, figsize=(12, 8), 
-                                 subplot_kw={'projection': ccrs.PlateCarree()})
-            
-            # Set extent to cover continental US
-            ax.set_extent([-130, -60, 20, 50], ccrs.PlateCarree())
-            
-            # Add map features with subtle styling for better radar visibility
-            ax.add_feature(cfeature.COASTLINE, alpha=0.2, linewidth=0.5, color='gray')
-            ax.add_feature(cfeature.BORDERS, alpha=0.2, linewidth=0.5, color='gray')
-            ax.add_feature(cfeature.STATES, alpha=0.2, linewidth=0.3, color='gray')
-            
-            # Create high-resolution grid for smooth interpolation
-            lons = np.linspace(-130, -60, 400)  # Increased resolution
-            lats = np.linspace(20, 50, 300)
-            LON, LAT = np.meshgrid(lons, lats)
-            
-            # Generate realistic, smooth weather patterns with temporal evolution
-            if frame_time is None:
-                frame_time = time.time()
-            
-            # Create multiple storm systems with smooth movement
-            weather_intensity = np.zeros_like(LON)
-            
-            # Storm system 1: Moving east across central plains
-            storm1_center_lon = -100 + 0.02 * (frame_time % 3600)  # Moves east over time
-            storm1_center_lat = 35 + 2 * np.sin(frame_time / 1800)  # Slight north-south oscillation
-            
-            distance1 = np.sqrt((LON - storm1_center_lon)**2 + (LAT - storm1_center_lat)**2)
-            storm1_intensity = 50 * np.exp(-distance1**2 / 8) * (0.7 + 0.3 * np.sin(frame_time / 300))
-            
-            # Storm system 2: Gulf coast system
-            storm2_center_lon = -95 + 0.01 * (frame_time % 7200)
-            storm2_center_lat = 29 + 1.5 * np.cos(frame_time / 2400)
-            
-            distance2 = np.sqrt((LON - storm2_center_lon)**2 + (LAT - storm2_center_lat)**2)
-            storm2_intensity = 45 * np.exp(-distance2**2 / 12) * (0.6 + 0.4 * np.cos(frame_time / 400))
-            
-            # Storm system 3: Pacific northwest
-            storm3_center_lon = -115 + 0.015 * (frame_time % 4800)
-            storm3_center_lat = 45 + np.sin(frame_time / 3600)
-            
-            distance3 = np.sqrt((LON - storm3_center_lon)**2 + (LAT - storm3_center_lat)**2)
-            storm3_intensity = 40 * np.exp(-distance3**2 / 10) * (0.8 + 0.2 * np.sin(frame_time / 200))
-            
-            # Add scattered cells with smooth evolution
-            for i in range(8):  # 8 smaller weather cells
-                cell_base_lon = -120 + i * 8 + 3 * np.sin(frame_time / (1000 + i * 100))
-                cell_base_lat = 30 + i * 2.5 + 2 * np.cos(frame_time / (800 + i * 150))
-                
-                cell_distance = np.sqrt((LON - cell_base_lon)**2 + (LAT - cell_base_lat)**2)
-                cell_intensity = (25 + 15 * np.sin(frame_time / (500 + i * 50))) * np.exp(-cell_distance**2 / 4)
-                cell_intensity = np.maximum(cell_intensity, 0)
-                
-                weather_intensity = np.maximum(weather_intensity, cell_intensity)
-            
-            # Combine all storm systems
-            weather_intensity = np.maximum(weather_intensity, storm1_intensity)
-            weather_intensity = np.maximum(weather_intensity, storm2_intensity)
-            weather_intensity = np.maximum(weather_intensity, storm3_intensity)
-            
-            # Apply smooth threshold to remove noise
-            weather_intensity = np.where(weather_intensity > 5, weather_intensity, 0)
-            
-            # Apply radar color scheme with smooth gradients
-            radar_cmap = plt.cm.get_cmap('NWSRef')
-            
-            # Plot radar data with smooth interpolation
-            if np.max(weather_intensity) > 1:
-                im = ax.pcolormesh(LON, LAT, weather_intensity, 
-                                 cmap=radar_cmap, alpha=0.8, 
-                                 vmin=0, vmax=70, transform=ccrs.PlateCarree(),
-                                 shading='gouraud')  # Smooth shading for better interpolation
-                
-                # Add colorbar with better styling
-                cbar = plt.colorbar(im, ax=ax, shrink=0.7, aspect=30, pad=0.02)
-                cbar.set_label('Reflectivity (dBZ)', color='white', fontsize=11)
-                cbar.ax.tick_params(colors='white', labelsize=9)
-            
-            # Style the plot for professional appearance
-            ax.set_facecolor('black')
-            fig.patch.set_facecolor('black')
-            
-            # Add professional timestamp and info
-            timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-            info_text = f'Storm Oracle - National Composite\n{timestamp}\nReal-time Weather Radar'
-            ax.text(0.02, 0.98, info_text, 
-                   transform=ax.transAxes, color='white', fontsize=10,
-                   verticalalignment='top', fontweight='bold',
-                   bbox=dict(boxstyle='round,pad=0.5', facecolor='black', alpha=0.8))
-            
-            # Add NEXRAD station indicators (optional)
-            major_stations = [
-                (-94.2645, 38.8103, 'KEAX'),  # Kansas City
-                (-97.3031, 32.5731, 'KFWS'),  # Fort Worth
-                (-95.0789, 29.4719, 'KHGX'),  # Houston
-                (-86.7697, 33.1722, 'KBMX'),  # Birmingham
-                (-75.2400, 39.8719, 'KPHI'),  # Philadelphia
-            ]
-            
-            for lon, lat, station_id in major_stations:
-                ax.plot(lon, lat, 'wo', markersize=3, markeredgecolor='red', 
-                       markeredgewidth=1, transform=ccrs.PlateCarree(), alpha=0.7)
-            
-            # Convert to image
-            buf = io.BytesIO()
-            plt.savefig(buf, format='png', dpi=150, bbox_inches='tight',
-                       facecolor='black', edgecolor='none', transparent=False)
-            buf.seek(0)
-            
-            plt.close(fig)
-            
-            return buf.getvalue()
-            
-        except Exception as e:
-            logger.error(f"Error generating national radar composite: {str(e)}")
-            return self._create_error_image("National Radar Unavailable")
-    
-    async def get_station_radar(self, station_id, data_type="reflectivity"):
-        """Get individual station radar using PyART with circular coverage"""
-        try:
-            # Station coordinates (comprehensive NEXRAD station list)
-            station_coords = {
-                'KEAX': (-94.2645, 38.8103),  # Kansas City
-                'KFWS': (-97.3031, 32.5731),  # Fort Worth
-                'KAMA': (-101.7089, 35.2331), # Amarillo
-                'KOHX': (-86.5625, 36.2472),  # Nashville
-                'KLOT': (-88.0853, 41.6044),  # Chicago
-                'KOUN': (-97.4625, 35.2333),  # Norman, OK
-                'KBMX': (-86.7697, 33.1722),  # Birmingham
-                'KHTX': (-86.0833, 34.9306),  # Huntsville
-                'KABX': (-106.8239, 35.1498), # Albuquerque
-                'KEWX': (-98.0286, 29.7044),  # Austin/San Antonio
-                'KCRP': (-97.5111, 27.7842),  # Corpus Christi
-                'KDYX': (-99.2542, 32.5386),  # Dyess AFB
-                'KFDR': (-98.9761, 34.3631),  # Frederick
-                'KGRK': (-97.3831, 30.7219),  # Central Texas
-                'KHGX': (-95.0789, 29.4719),  # Houston
-                'KJAX': (-81.7019, 30.4847),  # Jacksonville
-                'KTBW': (-82.4019, 27.7056),  # Tampa Bay
-                'KAMX': (-80.4128, 25.6111),  # Miami
-                'KMLB': (-80.6531, 28.1133),  # Melbourne
-                'KTLH': (-84.3289, 30.3975),  # Tallahassee
-                'KMOB': (-88.2397, 30.6797),  # Mobile
-                'KDGX': (-89.9844, 32.2803),  # Jackson, MS
-                'KGWX': (-88.3292, 33.8967),  # Columbus, MS
-                'KNQA': (-89.8733, 35.3447),  # Memphis
-                'KPAH': (-88.7719, 37.0683),  # Paducah
-                'KSGF': (-93.4006, 37.2353),  # Springfield, MO
-                'KLSX': (-90.6828, 38.6989),  # St. Louis
-                'KDVN': (-90.5808, 41.6117),  # Davenport
-                'KDMX': (-93.7228, 41.7311),  # Des Moines
-                'KOAX': (-96.3667, 41.3200),  # Omaha
-                'KUEX': (-98.4422, 40.3208),  # Hastings, NE
-                'KGLD': (-101.7, 39.3667),    # Goodland, KS
-                'KTWX': (-96.2325, 38.9969),  # Topeka
-                'KICT': (-97.4431, 37.6544),  # Wichita
-                'KBIS': (-100.7608, 46.7708), # Bismarck
-                'KMVX': (-97.3258, 47.5278),  # Grand Forks
-                'KABR': (-98.4131, 45.4558),  # Aberdeen
-                'KUDX': (-102.8297, 44.1250), # Rapid City
-                'KCYS': (-104.8061, 41.1519), # Cheyenne
-                'KRIW': (-108.4772, 43.0661), # Riverton
-                'KFTG': (-104.5458, 39.7867), # Denver
-                'KGJX': (-108.2136, 39.0619), # Grand Junction
-                'KPUX': (-104.1811, 38.4595), # Pueblo
-                'KFCX': (-80.2742, 37.0242),  # Roanoke
-                'KLWX': (-77.4778, 38.9753),  # Washington DC
-                'KDOX': (-75.4400, 38.8256),  # Dover AFB
-                'KPHI': (-75.2400, 39.8719),  # Philadelphia
-                'KOKX': (-72.8644, 40.8656),  # New York
-                'KENX': (-74.0639, 42.5867),  # Albany
-                'KBGM': (-75.9847, 42.1997),  # Binghamton
-                'KBUF': (-78.7367, 42.9489),  # Buffalo
-                'KTYX': (-75.6800, 43.7556),  # Montague
-                'KCXX': (-73.1661, 44.5111),  # Burlington
-                'KGYX': (-70.2567, 43.8914),  # Gray, ME
-                'KCBW': (-67.8067, 46.0392),  # Houlton
-                'KBOX': (-71.1367, 41.9556),  # Boston
-                'KBIS': (-100.7608, 46.7708), # Bismarck
-            }
-            
-            if station_id in station_coords:
-                lon, lat = station_coords[station_id]
-            else:
-                # Default coordinates
-                lon, lat = -98.0, 39.0
-            
-            # NEXRAD radar range is 230km (143 miles), convert to degrees (approximately)
-            radar_range_degrees = 2.07  # 230km ≈ 2.07 degrees at mid-latitudes
-            
-            # Set circular extent around station
-            extent = radar_range_degrees
-            ax_extent = [lon-extent, lon+extent, lat-extent, lat+extent]
-            
-            fig, ax = plt.subplots(1, 1, figsize=(10, 10), 
-                                 subplot_kw={'projection': ccrs.PlateCarree()})
-            
-            ax.set_extent(ax_extent, ccrs.PlateCarree())
-            
-            # Add map features
-            ax.add_feature(cfeature.COASTLINE, alpha=0.5, linewidth=0.5)
-            ax.add_feature(cfeature.BORDERS, alpha=0.5, linewidth=0.5)
-            ax.add_feature(cfeature.STATES, alpha=0.5, linewidth=0.5)
-            
-            # Create high-resolution grid for circular coverage
-            lons = np.linspace(lon-extent, lon+extent, 300)
-            lats = np.linspace(lat-extent, lat+extent, 300)
-            LON, LAT = np.meshgrid(lons, lats)
-            
-            # Calculate distance from radar station in km
-            earth_radius = 6371.0  # km
-            dlat = np.radians(LAT - lat)
-            dlon = np.radians(LON - lon)
-            a = np.sin(dlat/2)**2 + np.cos(np.radians(lat)) * np.cos(np.radians(LAT)) * np.sin(dlon/2)**2
-            c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1-a))
-            distance_km = earth_radius * c
-            
-            # Create circular mask - only show data within radar range
-            circular_mask = distance_km <= 230  # 230km NEXRAD range
-            
-            # Generate realistic weather pattern around the station
-            current_time = time.time()
-            
-            # Create weather cells within circular coverage
-            weather_intensity = np.zeros_like(distance_km)
-            
-            # Add multiple weather cells with realistic patterns
-            for i in range(4):  # 4 weather cells
-                # Random cell location within radar range
-                cell_angle = np.random.uniform(0, 2*np.pi)
-                cell_distance = np.random.uniform(20, 180)  # 20-180km from radar
-                cell_lon = lon + (cell_distance/111.0) * np.cos(cell_angle)  # 111km per degree
-                cell_lat = lat + (cell_distance/111.0) * np.sin(cell_angle)
-                
-                cell_distance_grid = np.sqrt((LON - cell_lon)**2 + (LAT - cell_lat)**2) * 111.0  # Convert to km
-                
-                # Create realistic storm cell (exponential decay with oscillation)
-                base_intensity = 45 + 20 * np.sin(current_time / 100 + i)
-                cell_intensity = base_intensity * np.exp(-cell_distance_grid / 30) * (0.3 + 0.7 * np.sin(current_time / 150 + i*1.5))
-                cell_intensity = np.maximum(cell_intensity, 0)
-                
-                weather_intensity = np.maximum(weather_intensity, cell_intensity)
-            
-            # Apply circular mask - set data outside radar range to NaN
-            weather_intensity = np.where(circular_mask, weather_intensity, np.nan)
-            
-            # Apply radar color scheme
-            if data_type == "velocity":
-                radar_cmap = plt.cm.get_cmap('NWSVel')
-                # Convert to velocity data (-30 to +30 m/s)
-                weather_intensity = (weather_intensity - 35) * 60 / 70
-                vmin, vmax = -30, 30
-                label = 'Velocity (m/s)'
-            else:
-                radar_cmap = plt.cm.get_cmap('NWSRef')
-                vmin, vmax = 0, 70
-                label = 'Reflectivity (dBZ)'
-            
-            # Plot radar data with circular coverage
-            if np.nanmax(weather_intensity) > 1:
-                im = ax.pcolormesh(LON, LAT, weather_intensity, 
-                                 cmap=radar_cmap, alpha=0.8, 
-                                 vmin=vmin, vmax=vmax, transform=ccrs.PlateCarree())
-                
-                # Add colorbar
-                cbar = plt.colorbar(im, ax=ax, shrink=0.8, aspect=20, pad=0.02)
-                cbar.set_label(label, color='white', fontsize=11)
-                cbar.ax.tick_params(colors='white', labelsize=9)
-            
-            # Draw radar range circle
-            circle_lons = []
-            circle_lats = []
-            for angle in np.linspace(0, 2*np.pi, 100):
-                circle_lon = lon + (230/111.0) * np.cos(angle)  # 230km range
-                circle_lat = lat + (230/111.0) * np.sin(angle)
-                circle_lons.append(circle_lon)
-                circle_lats.append(circle_lat)
-            
-            ax.plot(circle_lons, circle_lats, 'w--', linewidth=1.5, alpha=0.6, 
-                   transform=ccrs.PlateCarree(), label='Radar Range (230km)')
-            
-            # Mark the radar station
-            ax.plot(lon, lat, 'wo', markersize=12, markeredgecolor='red', 
-                   markeredgewidth=3, transform=ccrs.PlateCarree(), zorder=10)
-            ax.text(lon, lat-0.15, station_id, color='white', fontweight='bold',
-                   ha='center', va='top', transform=ccrs.PlateCarree(), fontsize=14,
-                   bbox=dict(boxstyle='round,pad=0.3', facecolor='red', alpha=0.9))
-            
-            # Style the plot
-            ax.set_facecolor('black')
-            fig.patch.set_facecolor('black')
-            ax.gridlines(draw_labels=True, alpha=0.3, color='white')
-            
-            # Add timestamp and info
-            timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
-            info_text = f'{station_id} Radar - {timestamp}\nRange: 230km | {data_type.title()}'
-            ax.text(0.02, 0.98, info_text, 
-                   transform=ax.transAxes, color='white', fontsize=12,
-                   verticalalignment='top', fontweight='bold',
-                   bbox=dict(boxstyle='round,pad=0.5', facecolor='black', alpha=0.8))
-            
-            # Convert to image
-            buf = io.BytesIO()
-            plt.savefig(buf, format='png', dpi=200, bbox_inches='tight',
-                       facecolor='black', edgecolor='none', transparent=False)
-            buf.seek(0)
-            
-            plt.close(fig)
-            
-            return buf.getvalue()
-            
-        except Exception as e:
-            logger.error(f"Error generating station radar for {station_id}: {str(e)}")
-            return self._create_error_image(f"Radar {station_id} - Processing Error")
-    
-    def _create_error_image(self, message):
-        """Create an error placeholder image"""
-        fig, ax = plt.subplots(1, 1, figsize=(6, 6), facecolor='black')
-        ax.set_facecolor('black')
-        ax.text(0.5, 0.5, message, ha='center', va='center', 
-               color='white', fontsize=14, transform=ax.transAxes,
-               bbox=dict(boxstyle='round', facecolor='red', alpha=0.8))
-        ax.axis('off')
-        
-        buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=100, bbox_inches='tight',
-                   facecolor='black', edgecolor='none')
-        buf.seek(0)
-        plt.close(fig)
-        
-        return buf.getvalue()
+    def __init__(self, tornado_marker_path: str = "/mnt/data/tornado-marker.png"):
+        self.tornado_marker_path = tornado_marker_path
 
-# Global radar processor instance
+    # ---------- Station PPI ----------
+    def get_station(
+        self,
+        station_id: str,
+        product: str = "base_reflectivity",
+        sweep: int = 0,
+        cmap: str = "NWSRef",
+        easy_mode: bool = True,
+        storm_motion_uv: tuple[float,float] | None = None,
+        overlays: dict | None = None,
+    ):
+        """
+        product: one of FIELD.keys()
+        storm_motion_uv: (u,v) m/s for SRV (eastward, northward). If None, SRV uses base velocity.
+        overlays: {
+          "tornado_confirmed": [{"lon":..,"lat":..,"intensity":EF,"size_scale":..}, ...],
+          "tornado_predicted": [{"lon":..,"lat":..,"intensity":rating}, ...],
+          "lightning": [{"lon":..,"lat":..,"age_sec":..,"amp":..}, ...],
+          "hail": [{"lon":..,"lat":..,"size_in":..}, ...],
+          "winds": [{"lon":..,"lat":..,"u":..,"v":..}, ...],
+        }
+        """
+        try:
+            field = FIELD.get(product)
+            if field is None:
+                raise ValueError(f"Unsupported product '{product}'. Options: {list(FIELD)}")
+
+            radar, key = _read_l2(station_id)
+            if field not in radar.fields:
+                raise RuntimeError(f"{station_id} volume missing '{field}'")
+
+            display = pyart.graph.RadarMapDisplay(radar)
+
+            # choose vmin/vmax
+            if field == "reflectivity":
+                vmin, vmax = (0, 70)
+            elif field == "velocity":
+                vmin, vmax = (-35, 35)
+            elif field == "spectrum_width":
+                vmin, vmax = (0, 12)
+            elif field == "differential_reflectivity":
+                vmin, vmax = (-1, 6)
+            elif field == "cross_correlation_ratio":
+                vmin, vmax = (0.7, 1.0)
+            elif field == "specific_differential_phase":
+                vmin, vmax = (0, 5)
+            else:
+                vmin, vmax = (None, None)
+
+            fig = plt.figure(figsize=(10, 9), facecolor="black")
+            ax = plt.axes(projection=ccrs.PlateCarree())
+            ax.set_facecolor("black"); _add_features(ax, faint=True); _gridliner(ax)
+
+            cm = _cmap(cmap)
+
+            lat0 = float(radar.latitude["data"][0]); lon0 = float(radar.longitude["data"][0])
+            deg_lat = 230.0/111.0
+            deg_lon = 230.0/(111.0*max(math.cos(math.radians(lat0)), 1e-3))
+            ax.set_extent([lon0-deg_lon, lon0+deg_lon, lat0-deg_lat, lat0+deg_lat], crs=ccrs.PlateCarree())
+
+            # Build field to plot (SRV / hires)
+            data = radar.fields[field]["data"]
+            if product == "storm_relative_velocity" and storm_motion_uv is not None:
+                data = _storm_relative_velocity(radar, sweep, storm_motion_uv)
+
+            # Plot options for "hi-res": use pcolormesh with no shading to retain native bins
+            hi_res = product.endswith("_hr") or product == "storm_relative_velocity"
+            display.plot_ppi_map(
+                field if product != "storm_relative_velocity" else None,
+                sweep=sweep,
+                ax=ax,
+                projection=ccrs.PlateCarree(),
+                vmin=vmin, vmax=vmax, cmap=cm,
+                colorbar_flag=True, title_flag=False,
+                lat_lines=None, lon_lines=None, embellish=False,
+                raster=False
+            )
+            # If we replaced data (SRV), draw it manually over the same axes
+            if product == "storm_relative_velocity":
+                x, y = display._get_x_y(sweep, True, None)  # meters in map proj
+                # convert meters to degrees approx near radar:
+                xy = display._get_x_y(sweep, False, None)
+                pm = ax.pcolormesh(x, y, data, cmap=cm, vmin=vmin, vmax=vmax, transform=display._projection,
+                                   shading="nearest", zorder=9)
+
+            # Title + station mark
+            human_time = _now()
+            ax.text(0.02, 0.98, f"{station_id} • {product.replace('_',' ').title()} • {human_time}",
+                    transform=ax.transAxes, va="top", ha="left", color="white",
+                    fontsize=12, fontweight="bold",
+                    bbox=dict(boxstyle="round,pad=0.4", facecolor="black", alpha=0.6))
+            ax.plot([lon0],[lat0], marker="o", markersize=8, markerfacecolor="white",
+                    markeredgecolor="red", transform=ccrs.PlateCarree(), zorder=12)
+
+            # Rotation visualization on velocity/SRV
+            if product in ("base_velocity","velocity_hr","storm_relative_velocity"):
+                vel = radar.fields["velocity"]["data"] if product != "storm_relative_velocity" else data
+                vel2d = vel if vel.ndim == 2 else vel[sweep]
+                shear = _az_shear_proxy(vel2d)
+                # Display translucent magenta veil where shear high
+                try:
+                    x, y = display._get_x_y(sweep, True, None)
+                    ax.contourf(x, y, np.nan_to_num(shear), levels=[20,30,40,60,80,120],
+                                colors=["#7a00ff33","#b100ff33","#ff00ff33","#ff00ff55","#ff00ff77"],
+                                transform=display._projection, zorder=10)
+                except Exception:
+                    pass
+                # Mark potential couplets
+                for (i,j) in _find_velocity_couplets(vel2d, thresh_pair=45.0):
+                    try:
+                        ray_az = np.deg2rad(radar.azimuth["data"][i])
+                        rg = radar.range["data"][j]  # meters
+                        # x/y in meters relative to radar; convert by display utility
+                        xg, yg = display._get_x_y(sweep, True, None)
+                        ax.plot(xg[j], yg[i], "wo", ms=5, transform=display._projection, zorder=12)
+                    except Exception:
+                        break
+
+            # Easy mode legend
+            if easy_mode:
+                lines = []
+                if field == "reflectivity":
+                    d = data if isinstance(data, np.ndarray) else data[sweep]
+                    vals = np.array(d).astype(float)
+                    p90 = np.nanpercentile(vals[np.isfinite(vals)], 90) if np.isfinite(vals).any() else np.nan
+                    lines += [f"Top echoes ~{p90:.0f} dBZ ({_ref_category(p90)})",
+                              "0–10 very light • 20–30 moderate",
+                              "40–50 heavy • 60+ extreme/hail risk"]
+                elif "velocity" in product:
+                    lines += ["Inbound vs outbound → rotation",
+                              "Magenta veil = high azimuthal shear",
+                              "Dots = possible couplets (gate-to-gate shear)"]
+                elif field == "cross_correlation_ratio":
+                    lines += ["ρhv ~1.0: uniform (rain/snow)",
+                              "<0.85 + high dBZ: debris/hail"]
+                elif field == "differential_reflectivity":
+                    lines += ["High ZDR: big/oblate drops",
+                              "Low ZDR + high dBZ: hail"]
+                elif field == "specific_differential_phase":
+                    lines += ["Higher KDP: heavier rain rates"]
+                if lines:
+                    ax.text(0.98, 0.02, "\n".join(lines), transform=ax.transAxes,
+                            ha="right", va="bottom", color="white", fontsize=9,
+                            bbox=dict(boxstyle="round,pad=0.5", facecolor="black", alpha=0.6))
+
+            # ----- Overlays -----
+            overlays = overlays or {}
+            _draw_lightning(ax, overlays.get("lightning"))
+            _draw_hail(ax, overlays.get("hail"))
+            _draw_wind(ax, overlays.get("winds"))
+
+            # Tornado markers
+            _draw_tornado_markers(ax, overlays.get("tornado_confirmed"),
+                                  self.tornado_marker_path, colorize=None, spin=True)
+            _draw_tornado_markers(ax, overlays.get("tornado_predicted"),
+                                  self.tornado_marker_path, colorize=(0.3,1.0,0.3), spin=False)
+
+            return _bytes(fig, dpi=170)
+
+        except Exception as e:
+            logger.exception("Station render failed")
+            return self._error_tile(f"{station_id} • {product}: {e}")
+
+    # ---------- National Composite ----------
+    def get_composite(
+        self,
+        product: str = "base_reflectivity",
+        stations: list[str] | None = None,
+        cmap: str = "NWSRef",
+        easy_mode: bool = True
+    ):
+        """
+        Quick-look national mosaic using Py-ART gridding.
+        (For production accuracy, reproject grid to lon/lat with pyproj.)
+        """
+        try:
+            field = FIELD.get(product)
+            if field is None: raise ValueError(f"Unsupported product '{product}'")
+
+            stations = stations or DEFAULT_COMPOSITE_STATIONS
+            radars = []
+            for s in stations:
+                try:
+                    r, _ = _read_l2(s)
+                    if field in r.fields: radars.append(r)
+                except Exception:
+                    continue
+            if not radars: raise RuntimeError("No usable radars fetched.")
+
+            grid = pyart.map.grid_from_radars(
+                radars, fields=[field],
+                grid_shape=(1, 700, 1100),
+                grid_limits=((0, 20000.0), (-2500000.0, 2500000.0), (-4000000.0, -500000.0)),
+                weighting_function="Barnes2", gridding_algo="map_to_grid",
+                roi_func='constant', constant_roi=2000.0
+            )
+            f = grid.fields[field]["data"][0]
+
+            # color limits as station
+            if field == "reflectivity": vmin, vmax = (0,70)
+            elif field == "velocity": vmin, vmax = (-35,35)
+            elif field == "spectrum_width": vmin, vmax = (0,12)
+            elif field == "differential_reflectivity": vmin, vmax = (-1,6)
+            elif field == "cross_correlation_ratio": vmin, vmax = (0.7,1.0)
+            elif field == "specific_differential_phase": vmin, vmax = (0,5)
+            else: vmin, vmax = (np.nanmin(f), np.nanmax(f))
+
+            fig = plt.figure(figsize=(12.5, 8.5), facecolor="black")
+            ax = plt.axes(projection=ccrs.PlateCarree())
+            ax.set_facecolor("black")
+            ax.set_extent([-130, -60, 20, 50], crs=ccrs.PlateCarree())
+            _add_features(ax, faint=True)
+
+            im = ax.imshow(np.flipud(f), extent=[-130,-60,20,50], origin="upper",
+                           cmap=_cmap(cmap), vmin=vmin, vmax=vmax, alpha=0.95,
+                           transform=ccrs.PlateCarree())
+            cb = plt.colorbar(im, ax=ax, shrink=0.7, pad=0.02, aspect=30)
+            cb.ax.tick_params(colors="white", labelsize=9)
+            label = {
+                "reflectivity": "Reflectivity (dBZ)",
+                "velocity": "Velocity (m/s)",
+                "spectrum_width": "Spectrum Width (m/s)",
+                "differential_reflectivity": "ZDR (dB)",
+                "cross_correlation_ratio": "ρhv",
+                "specific_differential_phase": "KDP (°/km)"
+            }.get(field, field)
+            cb.set_label(label, color="white", fontsize=11)
+
+            ax.text(0.02, 0.98, f"Storm Oracle — National Composite • {product.replace('_',' ').title()} • {_now()}",
+                    transform=ax.transAxes, va="top", ha="left", color="white",
+                    fontsize=12, fontweight="bold",
+                    bbox=dict(boxstyle="round,pad=0.5", facecolor="black", alpha=0.6))
+
+            if easy_mode and field == "reflectivity":
+                ax.text(0.98, 0.02, "0–10 very light\n20–30 moderate\n40–50 heavy\n60+ extreme/hail risk",
+                        transform=ax.transAxes, ha="right", va="bottom", color="white", fontsize=9,
+                        bbox=dict(boxstyle="round,pad=0.5", facecolor="black", alpha=0.6))
+
+            return _bytes(fig, dpi=150)
+
+        except Exception as e:
+            logger.exception("Composite render failed")
+            return self._error_tile(f"Composite • {product}: {e}")
+
+    # ---------- Error tile ----------
+    def _error_tile(self, msg):
+        fig, ax = plt.subplots(1,1, figsize=(6,4), facecolor="black")
+        ax.set_facecolor("black")
+        ax.text(0.5,0.55,"Radar Error", ha="center", va="center",
+                color="white", fontsize=16, fontweight="bold", transform=ax.transAxes,
+                bbox=dict(boxstyle="round", facecolor="red", alpha=0.85))
+        ax.text(0.5,0.35,str(msg), ha="center", va="center", color="white",
+                fontsize=10, transform=ax.transAxes)
+        ax.axis("off")
+        return _bytes(fig, dpi=120)
+
+# Global instance
 radar_processor = RadarProcessor()
