@@ -1,15 +1,17 @@
 """
-🌪️ STORM ORACLE — Tornado Super-Predictor (training-ready, no placeholders)
+🌪️ STORM ORACLE — Tornado Super-Predictor (training-ready)
 
 - RadarPatternExtractor: multi-scale CNN + spatial attention pooling
 - AtmosphericConditionEncoder: per-variable MLPs -> tokens -> attention -> fused vector
-- Heads: probability (sigmoid), EF (logits), location (reg), timing (reg), uncertainty (sigmoid)
-- Calibration: single temperature parameter (learnable/fittable after training)
+- Heads: probability (sigmoid), EF (softmax), location (reg), timing (reg), uncertainty (sigmoid)
+- Calibration: learnable temperature (log_temperature)
 - ContinuousLearner: online fine-tuning with replay buffer and EMA weights
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 
 import torch
 import torch.nn as nn
@@ -31,6 +33,13 @@ class TornadoPredictionBatch:
     atmospheric_indicators: torch.Tensor     # (B,3) [cape, shear_norm, instability]
     logits: Optional[torch.Tensor] = None    # (B,) pre-sigmoid (for calibration/loss)
 
+    # --- Mapping compatibility so monitor code can do out["key"] / out.get("key") ---
+    def __getitem__(self, key: str) -> Any:
+        return getattr(self, key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
 
 # ---------------------- Building blocks --------------------------------
 
@@ -41,7 +50,7 @@ class SpatialAttentionPool(nn.Module):
     def __init__(self, channels: int, num_heads: int = 8):
         super().__init__()
         self.channels = channels
-        self.pos_embed = nn.Parameter(torch.randn(1, channels, 1))  # simple scalar per-channel bias over tokens
+        self.pos_embed = nn.Parameter(torch.randn(1, channels, 1))  # mild per-channel positional bias
         self.query = nn.Parameter(torch.randn(1, 1, channels))      # learned global query token
         self.attn = nn.MultiheadAttention(embed_dim=channels, num_heads=num_heads, batch_first=True)
         self.ln = nn.LayerNorm(channels)
@@ -50,7 +59,8 @@ class SpatialAttentionPool(nn.Module):
         # x: (B,C,H,W) -> tokens: (B, H*W, C)
         B, C, H, W = x.shape
         tokens = x.view(B, C, H * W).transpose(1, 2)  # (B, HW, C)
-        tokens = self.ln(tokens + self.pos_embed.expand(B, C, 1).transpose(1, 2))  # broadcast mild bias
+        # broadcast pos_embed over tokens
+        tokens = self.ln(tokens + self.pos_embed.expand(B, C, 1).transpose(1, 2))
         q = self.query.expand(B, -1, -1)  # (B,1,C)
         pooled, _ = self.attn(q, tokens, tokens)  # (B,1,C)
         return pooled.squeeze(1)  # (B,C)
@@ -148,17 +158,23 @@ class AtmosphericConditionEncoder(nn.Module):
         )
 
     def forward(self, atmo: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        def ensure_2d(t: torch.Tensor, d: int) -> torch.Tensor:
-            # make (B,d)
-            t = t if t.ndim == 2 else t.view(-1, d)
+        dev = next(self.parameters()).device
+
+        def ensure_2d(t: Optional[torch.Tensor], d: int) -> torch.Tensor:
+            if t is None:
+                t = torch.zeros(1, d, device=dev)
+            if not isinstance(t, torch.Tensor):
+                t = torch.as_tensor(t, dtype=torch.float32, device=dev)
+            if t.ndim == 1:
+                t = t.view(1, d)
             return t
 
-        cape = ensure_2d(atmo.get("cape",        torch.zeros(1, 1, device=next(self.parameters()).device)), 1)
-        shear= ensure_2d(atmo.get("wind_shear",  torch.zeros(1, 4, device=next(self.parameters()).device)), 4)
-        hel  = ensure_2d(atmo.get("helicity",    torch.zeros(1, 2, device=next(self.parameters()).device)), 2)
-        temp = ensure_2d(atmo.get("temperature", torch.zeros(1, 3, device=next(self.parameters()).device)), 3)
-        dew  = ensure_2d(atmo.get("dewpoint",    torch.zeros(1, 2, device=next(self.parameters()).device)), 2)
-        pres = ensure_2d(atmo.get("pressure",    torch.zeros(1, 1, device=next(self.parameters()).device)), 1)
+        cape = ensure_2d(atmo.get("cape"),        1)
+        shear= ensure_2d(atmo.get("wind_shear"),  4)
+        hel  = ensure_2d(atmo.get("helicity"),    2)
+        temp = ensure_2d(atmo.get("temperature"), 3)
+        dew  = ensure_2d(atmo.get("dewpoint"),    2)
+        pres = ensure_2d(atmo.get("pressure"),    1)
 
         cape_e = F.relu(self.enc_cape(cape))           # (B,32)
         shear_e= F.relu(self.enc_shear(shear))         # (B,64)
@@ -307,7 +323,7 @@ class ContinuousLearner(nn.Module):
         # EMA weights
         self.shadow = {k: v.detach().clone() for k, v in self.model.state_dict().items()}
         self.replay_capacity = replay_capacity
-        self._replay = []  # list of tuples (radar_x, atmo_dict, y)
+        self._replay: List[Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]] = []
 
     def _bce_loss(self, logits: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         if self.pos_weight is not None:
@@ -329,12 +345,15 @@ class ContinuousLearner(nn.Module):
 
     def train_step(self, radar_x: torch.Tensor, atmo: Dict[str, torch.Tensor], y: torch.Tensor) -> Dict[str, float]:
         self.model.train()
-        out = self.model(radar_x, atmo)   # contains logits & probs
+        out = self.model(radar_x, atmo)   # TornadoPredictionBatch
 
-        if self.use_focal:
-            loss = self._focal_loss(out.logits, y)
-        else:
-            loss = self._bce_loss(out.logits, y)
+        logits = out.logits
+        if logits is None:
+            # safety: recompute
+            probs = out.tornado_probability
+            logits = torch.log(probs.clamp(1e-6) / (1 - probs.clamp(1e-6)))
+
+        loss = self._focal_loss(logits, y) if self.use_focal else self._bce_loss(logits, y)
 
         self.opt.zero_grad(set_to_none=True)
         loss.backward()
@@ -347,7 +366,6 @@ class ContinuousLearner(nn.Module):
             with torch.no_grad():
                 if len(self._replay) >= self.replay_capacity:
                     self._replay.pop(0)
-                # store small detached copy (avoid GPU memory blowup)
                 self._replay.append((
                     radar_x.detach().cpu(),
                     {k: v.detach().cpu() for k, v in atmo.items()},
@@ -356,7 +374,7 @@ class ContinuousLearner(nn.Module):
 
         with torch.no_grad():
             prob = out.tornado_probability.mean().item()
-        return {"loss": float(loss.item()), "avg_prob": prob}
+        return {"loss": float(loss.item()), "avg_prob": float(prob)}
 
     @torch.no_grad()
     def ema_state_dict(self) -> Dict[str, torch.Tensor]:
@@ -373,8 +391,7 @@ class ContinuousLearner(nn.Module):
         idxs = random.sample(range(len(self._replay)), k=min(batch_size, len(self._replay)))
         xs = torch.cat([self._replay[i][0] for i in idxs], dim=0).to(self.device)
         ys = torch.cat([self._replay[i][2] for i in idxs], dim=0).to(self.device)
-        atmo = {}
-        # stack dict fields
+        atmo: Dict[str, torch.Tensor] = {}
         keys = list(self._replay[idxs[0]][1].keys())
         for k in keys:
             atmo[k] = torch.cat([self._replay[i][1][k] for i in idxs], dim=0).to(self.device)
