@@ -13,10 +13,11 @@ import asyncio
 import httpx
 import math
 import time
-from emergentintegrations.llm.chat import LlmChat, UserMessage
-
+from backend.assistants.weather_ai import weather_ai4
 # Import Stripe payment integration
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
+
+AI_PROVIDER_LABEL = "Hybrid AI (Weather Assistant)"
 
 # Import authentication
 from auth import (
@@ -1221,7 +1222,7 @@ async def ml_enhanced_tornado_analysis(station_id: str, data_type: str = "reflec
         
         # Get AI analysis
         claude_message = UserMessage(text=claude_prompt)
-        ai_analysis = await claude_chat.send_message(claude_message)
+        ai_analysis = await weather_ai.summarize_alert(claude_prompt)
         
         # Create comprehensive alert
         enhanced_alert = TornadoAlert(
@@ -1327,7 +1328,7 @@ async def analyze_tornado_risk(station_id: str, data_type: str = "reflectivity")
         
         # Get AI analysis
         message = UserMessage(text=analysis_prompt)
-        ai_response = await claude_chat.send_message(message)
+        ai_analysis = await weather_ai.summarize_alert(claude_prompt)
         
         # Parse response and create tornado alert
         alert = TornadoAlert(
@@ -1392,7 +1393,7 @@ async def chat_with_ai(message: str, user_id: str = "user", context: Optional[Di
         """
         
         ai_message = UserMessage(text=chat_prompt)
-        response = await claude_chat.send_message(ai_message)
+        response =await weather_ai.answer_question(user_question, context_text)
         
         # Store chat history
         chat_record = ChatMessage(
