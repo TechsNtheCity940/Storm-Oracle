@@ -1,51 +1,67 @@
 """
 🌪️ STORM ORACLE - AUTOMATED STORM MONITORING SYSTEM (HF edition)
 Continuously monitors radar stations and generates automatic tornado predictions.
-- Uses your TornadoSuperPredictor (tornado_predictor.py)
-- Free Hugging Face assistant for alert text & user Q&A (no Claude)
+
+- Uses your TornadoSuperPredictor (backend/ml_models/tornado_predictor.py)
+- Uses ml_data_pipeline from data_processor.py
+- Optional free Hugging Face text assistant for alerts/summaries
 """
 
+from __future__ import annotations
+
 import asyncio
+import contextlib
+import hashlib
 import logging
 import math
+import os
 from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional
 from pathlib import Path
-import json
-import hashlib
-import contextlib
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
-from torch import nn
 
-# --- Your model ---
-# Path: D:/Storm-Oracle-main/backend/ml_models/tornado_predictor.py (as you stated)
-from backend.ml_models.tornado_predictor import TornadoSuperPredictor
+# -----------------------------
+# Model import (robust pathing)
+# -----------------------------
+# If running as a package, backend is already importable; otherwise add project root.
+try:
+    from backend.ml_models.tornado_predictor import TornadoSuperPredictor
+except Exception:
+    # try to add "<repo_root>/backend" to path if caller runs from repo root
+    import sys
+    repo_backend = Path(__file__).resolve().parents[1] / "backend"
+    if repo_backend.exists():
+        sys.path.insert(0, str(repo_backend))
+    from ml_models.tornado_predictor import TornadoSuperPredictor  # type: ignore
 
-# --- Your data pipeline (must provide .prepare_prediction_data) ---
-# Expected signature:
-#   await ml_data_pipeline.prepare_prediction_data(station_id, station_location) -> {
-#       "radar_sequence": Tensor (C,H,W) or (1,C,H,W),
-#       "atmospheric_data": Dict[str, Tensor(batch=1, dim)],
-#       "data_quality": str,
-#   }
-from .data_processor import ml_data_pipeline  # keep your existing module
-
-# --- Hugging Face assistant (free) ---
-from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
+# -----------------------------
+# Data pipeline import
+# -----------------------------
+try:
+    # if storm_monitor.py is in same package as data_processor
+    from .data_processor import ml_data_pipeline  # type: ignore
+except Exception:
+    # allow running as a script from repo root
+    from data_processor import ml_data_pipeline  # type: ignore
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.INFO)
 
 # =============================================================================
-# Inference Bridge (loads your trained weights and returns legacy-style dict)
+# Inference Bridge
 # =============================================================================
 class InferenceEngine:
-    def __init__(self, weights_path: str, in_channels: int = 3, device: Optional[str] = None):
+    """
+    Wraps TornadoSuperPredictor and returns a stable dict the monitor can use.
+    Expects radar input as (C,H,W) or (1,C,H,W). Atmos dict has (1,dim) tensors.
+    """
+
+    def __init__(self, weights_path: Optional[str], in_channels: int, device: Optional[str] = None):
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         self.model = TornadoSuperPredictor(in_channels=in_channels).to(self.device)
         self.model.eval()
-        self.temperature: Optional[float] = None  # optional post-hoc calibration
+        self.temperature: Optional[float] = None
 
         if weights_path:
             p = Path(weights_path)
@@ -53,7 +69,6 @@ class InferenceEngine:
                 logger.warning(f"[Inference] Weights not found at {p}. Running with random init.")
             else:
                 state = torch.load(p, map_location=self.device)
-                # accept either Lightning state_dict (with 'model.') or pure model dict
                 if isinstance(state, dict) and any(k.startswith("model.") for k in state.keys()):
                     state = {k.split("model.", 1)[-1]: v for k, v in state.items()}
                 missing, unexpected = self.model.load_state_dict(state, strict=False)
@@ -63,30 +78,27 @@ class InferenceEngine:
                     logger.warning(f"[Inference] Unexpected keys: {unexpected[:8]}{'...' if len(unexpected)>8 else ''}")
                 logger.info(f"[Inference] Loaded weights from {p}")
 
-    def set_temperature(self, T: float):
-        """Optional temperature scaling for better probability calibration."""
+    def set_temperature(self, T: float) -> None:
         self.temperature = max(1e-6, float(T))
 
     @torch.no_grad()
     def predict_one(self, radar_tensor: torch.Tensor, atmo: Optional[Dict[str, torch.Tensor]] = None) -> Dict[str, Any]:
-        """
-        radar_tensor: (C,H,W) or (1,C,H,W). Float32, same normalization as training.
-        atmo: dict of tensors with shape (1,dim). Missing keys filled with zeros.
-        Returns a legacy-style dict used by the monitor/alerts.
-        """
+        # Ensure shape (1,C,H,W)
         if radar_tensor.ndim == 3:
-            radar_tensor = radar_tensor.unsqueeze(0)  # (1,C,H,W)
-        radar_tensor = radar_tensor.to(self.device, non_blocking=True)
+            radar_tensor = radar_tensor.unsqueeze(0)
+        radar_tensor = radar_tensor.to(self.device, non_blocking=True).float()
 
+        # Ensure required atmos keys / shapes
         atmo = atmo or {}
-        # Ensure all expected keys exist with (1,dim) shapes
-        def _ensure(name, shape):
-            if name not in atmo or atmo[name] is None:
-                atmo[name] = torch.zeros(shape, dtype=torch.float32)
-            t = atmo[name]
-            if t.ndim == 1:
-                t = t.unsqueeze(0)
-            atmo[name] = t.to(self.device, non_blocking=True)
+        def _ensure(name: str, shape: Tuple[int, ...]):
+            t = atmo.get(name)
+            if t is None:
+                atmo[name] = torch.zeros(shape, dtype=torch.float32, device=self.device)
+            else:
+                t = t if isinstance(t, torch.Tensor) else torch.as_tensor(t, dtype=torch.float32)
+                if t.ndim == 1:  # (dim,) -> (1,dim)
+                    t = t.unsqueeze(0)
+                atmo[name] = t.to(self.device, non_blocking=True)
         _ensure("cape", (1, 1))
         _ensure("wind_shear", (1, 4))
         _ensure("helicity", (1, 2))
@@ -94,91 +106,111 @@ class InferenceEngine:
         _ensure("dewpoint", (1, 2))
         _ensure("pressure", (1, 1))
 
-        out = self.model(radar_tensor, atmo)  # returns batch dict of tensors
+        out = self.model(radar_tensor, atmo)  # model returns a dict of tensors
 
-        # Apply optional temperature scaling to the tornado probability
-        prob = out["tornado_probability"]  # (B,)
+        # tornado prob (with optional temperature scaling)
+        prob = out.get("tornado_probability")
+        if prob is None:
+            raise RuntimeError("Model output missing 'tornado_probability'")
         if self.temperature is not None:
-            # convert prob -> logit -> divide T -> prob
             p = prob.clamp(1e-6, 1 - 1e-6)
             logits = torch.log(p / (1 - p)) / self.temperature
             prob = torch.sigmoid(logits)
-
         prob_f = float(prob[0].item())
 
-        ef_idx = int(out["most_likely_ef_scale"][0].item())
-        ef_probs = out["ef_scale_probs"][0].tolist()
-        ef_dict = {f"EF{i}": float(ef_probs[i]) for i in range(6)}
+        def _grab(name: str, default):
+            t = out.get(name, default)
+            if isinstance(t, torch.Tensor):
+                t = t[0]
+                if t.ndim: t = t.tolist()
+                else: t = float(t.item())
+            return t
 
-        loc = out["location_offset"][0].tolist()               # [lat_off, lon_off]
-        tim = out["timing_predictions"][0].tolist()            # [time_to_td, duration, peak]
-        unc = out["uncertainty_scores"][0].tolist()            # [epistemic, aleatoric, total, confidence]
-        sig = out["radar_signatures"][0].tolist()              # [hook, meso, vel]
-        ind = out["atmospheric_indicators"][0].tolist()        # [cape, shear, instability]
+        ef_probs = _grab("ef_scale_probs", torch.zeros(6))
+        ef_idx = int(_grab("most_likely_ef_scale", torch.tensor([0])))
+        loc = _grab("location_offset", torch.tensor([0.0, 0.0]))  # [lat_off, lon_off]
+        tim = _grab("timing_predictions", torch.tensor([0.0, 0.0, 0.0]))
+        unc = _grab("uncertainty_scores", torch.tensor([0.0, 0.0, 0.0, 0.0]))
+        sig = _grab("radar_signatures", torch.tensor([0.0, 0.0, 0.0]))
+        ind = _grab("atmospheric_indicators", torch.tensor([0.0, 0.0, 0.0]))
 
         return {
             "tornado_probability": prob_f,
-            "ef_scale_prediction": ef_dict,
+            "ef_scale_prediction": {f"EF{i}": float(ef_probs[i]) for i in range(6)},
             "most_likely_ef_scale": ef_idx,
-            "location_offset": {"lat_offset": loc[0], "lng_offset": loc[1]},
+            "location_offset": {"lat_offset": float(loc[0]), "lng_offset": float(loc[1])},
             "timing_predictions": {
-                "time_to_touchdown_minutes": tim[0],
-                "duration_minutes": tim[1],
-                "peak_intensity_time_minutes": tim[2],
+                "time_to_touchdown_minutes": float(tim[0]),
+                "duration_minutes": float(tim[1]),
+                "peak_intensity_time_minutes": float(tim[2]),
             },
             "uncertainty_scores": {
-                "epistemic": unc[0], "aleatoric": unc[1], "total": unc[2], "confidence": unc[3],
+                "epistemic": float(unc[0]), "aleatoric": float(unc[1]),
+                "total": float(unc[2]), "confidence": float(unc[3]),
             },
             "radar_signatures": {
-                "hook_echo_strength": sig[0], "mesocyclone_strength": sig[1], "velocity_couplet_strength": sig[2],
+                "hook_echo_strength": float(sig[0]),
+                "mesocyclone_strength": float(sig[1]),
+                "velocity_couplet_strength": float(sig[2]),
             },
             "atmospheric_indicators": {
-                "cape_score": ind[0], "shear_magnitude": ind[1], "instability_index": ind[2],
+                "cape_score": float(ind[0]),
+                "shear_magnitude": float(ind[1]),
+                "instability_index": float(ind[2]),
             },
         }
 
-
 # =============================================================================
-# Free Assistant via Hugging Face (summaries/Q&A)
+# HF assistant (free)
 # =============================================================================
 class HFWeatherman:
     """
-    Lightweight free assistant for:
-      - Auto-alert wording
-      - National summary generation
-      - User Q&A (weather explainer)
-    Defaults to a small instruction model for CPU/GPU.
+    Small text assistant for alert wording & summaries.
+    Falls back to a local template if transformers is unavailable.
     """
-
     def __init__(self, model_name: str = "google/flan-t5-base", device: Optional[str] = None, max_new_tokens: int = 180):
-        self.device = 0 if (device is None and torch.cuda.is_available()) else device
-        # T5: use text2text-generation
-        self.pipe = pipeline("text2text-generation", model=model_name, tokenizer=model_name, device=self.device)
         self.max_new_tokens = max_new_tokens
+        self.pipe = None
+        try:
+            from transformers import pipeline  # lazy import
+            self.device = 0 if (device is None and torch.cuda.is_available()) else device
+            self.pipe = pipeline("text2text-generation", model=model_name, tokenizer=model_name, device=self.device)
+        except Exception as e:
+            logger.warning(f"[HF] transformers not available ({e}); falling back to rule-based text.")
 
     async def summarize_alert(self, prompt: str) -> str:
-        # non-blocking wrapper
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._gen, prompt, self.max_new_tokens)
+        return await loop.run_in_executor(None, self._gen, prompt)
 
     async def answer_question(self, question: str, context: Optional[str] = None) -> str:
         q = f"Question: {question}\n"
-        if context:
-            q += f"Context: {context}\n"
+        if context: q += f"Context: {context}\n"
         q += "Answer succinctly and clearly for a weather app user."
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._gen, q, self.max_new_tokens)
+        return await loop.run_in_executor(None, self._gen, q)
 
-    def _gen(self, text: str, max_new_tokens: int) -> str:
-        out = self.pipe(text, max_new_tokens=max_new_tokens, do_sample=False, num_beams=4)
+    def _gen(self, text: str) -> str:
+        if self.pipe is None:
+            # fallback
+            return "Automated summary: Elevated risk noted. Monitor official warnings. Seek sturdy shelter if a warning is issued."
+        out = self.pipe(text, max_new_tokens=self.max_new_tokens, do_sample=False, num_beams=4)
         return out[0]["generated_text"].strip()
 
-
 # =============================================================================
-# AutomatedStormMonitor (async service)
+# AutomatedStormMonitor
 # =============================================================================
 class AutomatedStormMonitor:
-    """Continuously monitors storm cells and generates automatic tornado predictions"""
+    """
+    Continuously scans stations, calls the ML model, and emits alerts to a DB.
+    Expects an async DB (Motor-like) with collections:
+      - radar_stations
+      - tornado_alerts
+      - system_messages
+    """
+
+    # hysteresis thresholds to mark a station as "active storm"
+    ACTIVE_ENTER = 0.20
+    ACTIVE_EXIT  = 0.12
 
     def __init__(
         self,
@@ -188,41 +220,33 @@ class AutomatedStormMonitor:
         in_channels: int,
         scan_interval_sec: int = 300,
         priority_interval_sec: int = 120,
+        batch_size: int = 8,
     ):
         self.db = db_connection
         self.ie = inference_engine
         self.assistant = assistant
         self.monitoring_active = False
-        self.scan_interval = scan_interval_sec
-        self.priority_interval = priority_interval_sec
-        self.in_channels = in_channels
+        self.scan_interval = int(scan_interval_sec)
+        self.priority_interval = int(priority_interval_sec)
+        self.batch_size = int(batch_size)
+        self.in_channels = int(in_channels)
 
-        # in-memory state
         self.active_storms: Dict[str, Dict[str, Any]] = {}
-        self.prediction_history: Dict[str, List[Dict[str, Any]]] = {}
         self._station_locks: Dict[str, asyncio.Lock] = {}
 
-        # ENTER/EXIT hysteresis for “active” tracking
-        self.ACTIVE_ENTER = 0.20
-        self.ACTIVE_EXIT = 0.12
-
-        # Priority stations (tornado-prone)
         self.priority_stations = [
-            'KTLX', 'KFDR', 'KINX', 'KEAX', 'KICT', 'KGLD', 'KDDC', 'KTWX',   # Tornado Alley
-            'KBMX', 'KHTX', 'KGWX', 'KNQA', 'KOHX', 'KPAH', 'KLZK',          # Southeast
-            'KLOT', 'KILX', 'KDVN', 'KDMX', 'KARX', 'KMPX', 'KFSD'           # Midwest
+            'KTLX','KFDR','KINX','KEAX','KICT','KGLD','KDDC','KTWX',   # Plains
+            'KBMX','KHTX','KGWX','KNQA','KOHX','KPAH','KLZK',         # Southeast
+            'KLOT','KILX','KDVN','KDMX','KARX','KMPX','KFSD'          # Midwest
         ]
-        logger.info("🌪️ Automated Storm Monitor (HF) initialized")
+        logger.info("🌪️ Automated Storm Monitor initialized")
 
-    # ---------------- Public control ----------------
-    async def start_monitoring(self):
+    # ---------- lifecycle ----------
+    async def start_monitoring(self) -> None:
         if self.monitoring_active:
-            logger.warning("Storm monitoring already active")
-            return
-
+            logger.warning("Storm monitoring already active"); return
         self.monitoring_active = True
-        logger.info("🚀 Starting automated storm monitoring")
-
+        logger.info("🚀 Starting monitoring loops")
         tasks = [
             asyncio.create_task(self._continuous_storm_scan(), name="scan_all"),
             asyncio.create_task(self._priority_station_monitor(), name="scan_priority"),
@@ -234,41 +258,37 @@ class AutomatedStormMonitor:
         finally:
             self.monitoring_active = False
 
-    async def stop_monitoring(self):
+    async def stop_monitoring(self) -> None:
         self.monitoring_active = False
-        logger.info("🛑 Stopped automated storm monitoring")
+        logger.info("🛑 Stop requested")
 
-    # ---------------- Core loops ----------------
-    async def _continuous_storm_scan(self):
-        """Scan all stations in batches on a cadence (default 5 minutes)."""
-        BATCH = 8  # don’t starve GPU; tune for your 4060 VRAM + pipeline
+    # ---------- loops ----------
+    async def _continuous_storm_scan(self) -> None:
         while self.monitoring_active:
             try:
                 stations = await self.db.radar_stations.find().to_list(2000)
-                logger.info(f"🔍 Scanning {len(stations)} radar stations")
-                for i in range(0, len(stations), BATCH):
-                    batch = stations[i:i + BATCH]
+                logger.info(f"🔍 Scanning {len(stations)} stations")
+                for i in range(0, len(stations), self.batch_size):
+                    batch = stations[i:i+self.batch_size]
                     await asyncio.gather(*(self._scan_station_for_storms(s) for s in batch))
-                    await asyncio.sleep(0.25)  # gentle backpressure
-                logger.info("✅ Completed full scan")
+                    await asyncio.sleep(0.25)
+                logger.info("✅ Full scan complete")
                 await asyncio.sleep(self.scan_interval)
             except Exception as e:
-                logger.exception(f"Error in continuous scan: {e}")
+                logger.exception(f"continuous scan error: {e}")
                 await asyncio.sleep(60)
 
-    async def _priority_station_monitor(self):
-        """Re-scan priority stations more frequently with lower threshold."""
+    async def _priority_station_monitor(self) -> None:
         while self.monitoring_active:
             try:
                 pri = await self.db.radar_stations.find({'station_id': {'$in': self.priority_stations}}).to_list(200)
                 await asyncio.gather(*(self._scan_station_for_storms(s) for s in pri))
                 await asyncio.sleep(self.priority_interval)
             except Exception as e:
-                logger.exception(f"Error in priority monitor: {e}")
+                logger.exception(f"priority monitor error: {e}")
                 await asyncio.sleep(60)
 
-    async def _cleanup_old_predictions(self):
-        """Delete auto alerts >24h; prune stale active storms each hour."""
+    async def _cleanup_old_predictions(self) -> None:
         while self.monitoring_active:
             try:
                 cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
@@ -279,36 +299,30 @@ class AutomatedStormMonitor:
                 if getattr(res, "deleted_count", 0):
                     logger.info(f"🧹 Deleted {res.deleted_count} old alerts")
 
-                # prune active storms >1h old
+                # prune stale active storms (>1h)
                 now = datetime.now(timezone.utc)
                 stale = [sid for sid, s in self.active_storms.items() if (now - s['last_updated']).total_seconds() > 3600]
-                for sid in stale:
-                    self.active_storms.pop(sid, None)
-                if stale:
-                    logger.info(f"🧹 Pruned {len(stale)} stale active storms")
+                for sid in stale: self.active_storms.pop(sid, None)
+                if stale: logger.info(f"🧹 Pruned {len(stale)} stale storms")
                 await asyncio.sleep(3600)
             except Exception as e:
-                logger.exception(f"Error in cleanup: {e}")
+                logger.exception(f"cleanup error: {e}")
                 await asyncio.sleep(3600)
 
-    async def _generate_national_summary(self):
-        """Every 30 minutes, summarize risk if enough moderate/high threats."""
+    async def _generate_national_summary(self) -> None:
         while self.monitoring_active:
             try:
-                await asyncio.sleep(1800)
-                if not self.active_storms:
-                    continue
+                await asyncio.sleep(1800)  # every 30 min
+                if not self.active_storms: continue
                 hi = [s for s in self.active_storms.values() if s['tornado_probability'] > 0.5]
                 mo = [s for s in self.active_storms.values() if 0.2 < s['tornado_probability'] <= 0.5]
-                if not hi and len(mo) <= 5:
-                    continue
+                if not hi and len(mo) <= 5: continue
 
-                lines_hi = "\n".join(f"- {s['station']['name']}: {s['tornado_probability']:.1%}" for s in hi[:8])
-                lines_mo = "\n".join(f"- {s['station']['name']}: {s['tornado_probability']:.1%}" for s in mo[:12])
+                def _line(s): return f"- {s['station']['name']} ({s['station']['station_id']}): {s['tornado_probability']:.1%}"
                 prompt = (
-                    f"National tornado threat summary at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}.\n"
-                    f"HIGH THREAT AREAS ({len(hi)}):\n{lines_hi}\n\n"
-                    f"MODERATE THREAT AREAS ({len(mo)}):\n{lines_mo}\n\n"
+                    f"National tornado threat summary at {datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}.\n"
+                    f"HIGH THREAT AREAS ({len(hi)}):\n" + "\n".join(_line(s) for s in hi[:8]) + "\n\n"
+                    f"MODERATE THREAT AREAS ({len(mo)}):\n" + "\n".join(_line(s) for s in mo[:12]) + "\n\n"
                     "Write a concise meteorologist-style outlook for the next 1–3 hours."
                 )
                 summary = await self.assistant.summarize_alert(prompt)
@@ -319,7 +333,7 @@ class AutomatedStormMonitor:
                 })
                 logger.info(f"📊 National summary stored ({len(hi)} high, {len(mo)} moderate)")
             except Exception as e:
-                logger.exception(f"Error generating national summary: {e}")
+                logger.exception(f"summary error: {e}")
 
     # ---------------- Station worker ----------------
     async def _scan_station_for_storms(self, station: Dict[str, Any]) -> Dict[str, Any]:
