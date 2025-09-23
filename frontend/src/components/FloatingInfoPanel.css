@@ -1,0 +1,361 @@
+/* Gaming/Tech-Inspired Floating Info Panel */
+.floating-info-panel {
+  position: fixed;
+  z-index: 10000;
+  max-width: 320px;
+  min-width: 280px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  filter: drop-shadow(0 8px 25px rgba(0, 0, 0, 0.6));
+}
+
+.panel-content {
+  background: linear-gradient(135deg, 
+    rgba(15, 23, 42, 0.95) 0%,
+    rgba(30, 41, 59, 0.95) 50%,
+    rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  backdrop-filter: blur(16px);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.panel-arrow {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-top: none;
+  border-left: none;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+/* Panel Headers */
+.panel-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.panel-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  opacity: 0.6;
+}
+
+.header-icon {
+  font-size: 24px;
+  margin-right: 12px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  animation: headerIconPulse 3s ease-in-out infinite;
+}
+
+@keyframes headerIconPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.header-content h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f8fafc;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.header-content div {
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+/* Tornado Header */
+.tornado-header {
+  color: #ef4444;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.1));
+}
+
+.ef-scale {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+/* Storm Header */
+.storm-header {
+  color: #f59e0b;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));
+}
+
+.storm-type {
+  color: #fbbf24;
+}
+
+/* Lightning Header */
+.lightning-header {
+  color: #fbbf24;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1));
+}
+
+.strike-rate {
+  color: #fde047;
+}
+
+/* Hail Header */
+.hail-header {
+  color: #06b6d4;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(8, 145, 178, 0.1));
+}
+
+.hail-size {
+  color: #67e8f9;
+}
+
+/* Wind Header */
+.wind-header {
+  color: #10b981;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1));
+}
+
+.wind-strength {
+  color: #34d399;
+}
+
+/* Precipitation Header */
+.precip-header {
+  color: #3b82f6;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1));
+}
+
+.precip-intensity {
+  color: #60a5fa;
+}
+
+/* Panel Body */
+.panel-body {
+  padding: 16px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f8fafc;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Value Color Coding */
+.confidence-0 { color: #ef4444; } /* 0-25% */
+.confidence-1 { color: #f59e0b; } /* 25-50% */
+.confidence-2 { color: #eab308; } /* 50-75% */
+.confidence-3 { color: #22c55e; } /* 75-100% */
+
+.intensity-0 { color: #22c55e; } /* Light */
+.intensity-1 { color: #eab308; } /* Moderate */
+.intensity-2 { color: #f59e0b; } /* Heavy */
+.intensity-3 { color: #ef4444; } /* Severe */
+.intensity-4 { color: #dc2626; } /* Extreme */
+
+.risk-0 { color: #22c55e; } /* Low */
+.risk-1 { color: #eab308; } /* Moderate */
+.risk-2 { color: #f59e0b; } /* High */
+.risk-3 { color: #ef4444; } /* Very High */
+.risk-4 { color: #dc2626; } /* Extreme */
+
+.wind-0 { color: #22c55e; } /* Light */
+.wind-1 { color: #eab308; } /* Moderate */
+.wind-2 { color: #f59e0b; } /* Strong */
+.wind-3 { color: #ef4444; } /* Severe */
+.wind-4 { color: #dc2626; } /* Hurricane */
+
+.prob-0 { color: #22c55e; } /* 0-25% */
+.prob-1 { color: #eab308; } /* 25-50% */
+.prob-2 { color: #f59e0b; } /* 50-75% */
+.prob-3 { color: #ef4444; } /* 75-100% */
+
+/* Alert Message */
+.alert-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 12px;
+}
+
+.alert-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.alert-text {
+  font-size: 12px;
+  color: #fecaca;
+  line-height: 1.4;
+}
+
+/* Storm Features */
+.storm-features {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.features-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.features-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.feature-tag {
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+/* Animation States */
+.floating-info-panel[style*="opacity: 0"] {
+  transform: translate(-50%, -100%) scale(0.9);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+}
+
+.floating-info-panel[style*="opacity: 1"] {
+  animation: panelSlideIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes panelSlideIn {
+  0% {
+    transform: translate(-50%, -100%) scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -100%) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .floating-info-panel {
+    max-width: 280px;
+    min-width: 240px;
+  }
+  
+  .panel-header {
+    padding: 10px 12px;
+  }
+  
+  .panel-body {
+    padding: 12px;
+  }
+  
+  .info-grid {
+    gap: 10px 12px;
+  }
+  
+  .header-icon {
+    font-size: 20px;
+    margin-right: 10px;
+  }
+  
+  .header-content h3 {
+    font-size: 13px;
+  }
+  
+  .value {
+    font-size: 12px;
+  }
+}
+
+/* Dark theme enhancements */
+@media (prefers-color-scheme: dark) {
+  .panel-content {
+    background: linear-gradient(135deg, 
+      rgba(3, 7, 18, 0.98) 0%,
+      rgba(15, 23, 42, 0.98) 50%,
+      rgba(3, 7, 18, 0.98) 100%);
+    border-color: rgba(148, 163, 184, 0.2);
+  }
+  
+  .panel-arrow {
+    background: linear-gradient(135deg, rgba(3, 7, 18, 0.98), rgba(15, 23, 42, 0.98));
+    border-color: rgba(148, 163, 184, 0.2);
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .panel-content {
+    border-width: 2px;
+    background: rgba(0, 0, 0, 0.95);
+  }
+  
+  .header-content h3 {
+    color: #ffffff;
+  }
+  
+  .value {
+    color: #ffffff;
+  }
+  
+  .label {
+    color: #ffffff;
+    opacity: 0.8;
+  }
+}

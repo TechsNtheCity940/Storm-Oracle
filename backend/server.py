@@ -1,0 +1,1738 @@
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, BackgroundTasks, status, Request
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+import logging
+from pathlib import Path
+from pydantic import BaseModel, Field, EmailStr
+from typing import List, Optional, Dict, Any
+import uuid
+from datetime import datetime, timezone, timedelta
+import asyncio
+import httpx
+import math
+import time
+import json
+# Import weather_ai AFTER environment loading so it can access HF_API_TOKEN
+from assistants.weather_ai import weather_ai  # Moved after dotenv loading
+# Import Stripe payment integration
+#from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest  # Not available, commenting out
+# ML data pipeline (works in both execution modes)
+import sys
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+ML_MODELS_DIR = BASE_DIR / "ml_models"
+if ML_MODELS_DIR.exists() and str(ML_MODELS_DIR) not in sys.path:
+    sys.path.insert(0, str(ML_MODELS_DIR))
+
+try:
+    from data_processor import ml_data_pipeline  # backend/ml_models/data_processor.py
+except Exception as e:
+    raise ImportError(
+        "Could not import ml_data_pipeline from backend/ml_models/data_processor.py. "
+        "Ensure the file exists and the path injection above ran."
+    ) from e
+
+AI_PROVIDER_LABEL = "Hybrid AI (Weather Assistant)"
+
+# Import authentication
+from auth import (
+    UserCreate, UserLogin, UserResponse, TokenResponse, PasswordReset, 
+    PasswordResetConfirm, EmailVerification, UserType,
+    hash_password, verify_password, create_access_token, create_refresh_token,
+    generate_verification_token, send_verification_email, send_password_reset_email,
+    get_current_user, check_subscription_limits, check_admin_secret,
+    is_trial_active, get_trial_days_remaining, start_free_trial
+)
+
+# Import our advanced ML system
+from ml_models.tornado_predictor import tornado_prediction_engine, TornadoSuperPredictor
+from ml_models.data_processor import ml_data_pipeline
+from ml_models.storm_monitor import AutomatedStormMonitor
+
+# Global storm monitor
+storm_monitor = None
+
+ROOT_DIR = Path(__file__).parent
+# Load environment from .env or .env.txt
+_env = ROOT_DIR / '.env'
+_env_txt = ROOT_DIR / '.env.txt'
+
+print("🔧 DEBUG: Checking for environment files...")
+print(f"🔧 DEBUG: ROOT_DIR = {ROOT_DIR}")
+print(f"🔧 DEBUG: .env path = {_env}")
+print(f"🔧 DEBUG: .env.txt path = {_env_txt}")
+print(f"🔧 DEBUG: .env exists = {_env.exists()}")
+print(f"🔧 DEBUG: .env.txt exists = {_env_txt.exists()}")
+
+if _env.exists():
+    print("🔧 DEBUG: Loading from .env file")
+    load_dotenv(_env)
+elif _env_txt.exists():
+    print("🔧 DEBUG: Loading from .env.txt file")
+    load_dotenv(_env_txt)
+else:
+    print("⚠️ DEBUG: No .env or .env.txt file found!")
+
+# Import weather_ai AFTER environment loading so it can access HF_API_TOKEN
+from assistants.weather_ai import weather_ai
+
+print("🔧 DEBUG: Verifying critical environment variables...")
+
+# Check critical tokens/variables
+critical_vars = {
+    'JWT_SECRET_KEY': os.environ.get('JWT_SECRET_KEY', 'NOT_SET'),
+    'STRIPE_API_KEY': os.environ.get('STRIPE_API_KEY', 'NOT_SET')[:20] + '...' if os.environ.get('STRIPE_API_KEY') else 'NOT_SET',
+    'MONGO_URL': os.environ.get('MONGO_URL', 'NOT_SET'),
+    'DB_NAME': os.environ.get('DB_NAME', 'NOT_SET'),
+    'MAIL_USERNAME': os.environ.get('MAIL_USERNAME', 'NOT_SET'),
+    'MAIL_PASSWORD': 'SET (hidden)' if os.environ.get('MAIL_PASSWORD') else 'NOT_SET',
+    'BACKEND_URL': os.environ.get('BACKEND_URL', 'NOT_SET'),
+    'EMERGENT_LLM_KEY': os.environ.get('EMERGENT_LLM_KEY', 'NOT_SET')[:30] + '...' if os.environ.get('EMERGENT_LLM_KEY') else 'NOT_SET',
+    'HF_API_TOKEN': os.environ.get('HF_API_TOKEN', 'NOT_SET')[:30] + '...' if os.environ.get('HF_API_TOKEN') else 'NOT_SET',
+}
+
+for var_name, var_value in critical_vars.items():
+    status = "✅ SET" if var_value != 'NOT_SET' else "❌ NOT SET"
+    print(f"🔧 DEBUG: {var_name} = {var_value} [{status}]")
+
+# Additional Stripe check
+stripe_key = os.environ.get('STRIPE_API_KEY')
+if stripe_key:
+    print(f"🔧 DEBUG: STRIPE_API_KEY length = {len(stripe_key)} characters")
+    print("🔧 DEBUG: STRIPE_API_KEY starts with sk_test or sk_live? " +
+          ("Yes" if stripe_key.startswith(('sk_test_', 'sk_live_')) else "No - INVALID FORMAT"))
+else:
+    print("⚠️ DEBUG: STRIPE_API_KEY is not set!")
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# MongoDB connection
+mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+db_name = os.environ.get('DB_NAME', 'storm_oracle')
+client = AsyncIOMotorClient(mongo_url)
+db = client[db_name]
+
+# Create the main app without a prefix
+app = FastAPI(title="Storm Oracle - Weather Radar API")
+
+# Create a router with the /api prefix
+api_router = APIRouter(prefix="/api")
+
+# Database collections
+users_collection = db.users
+verification_tokens_collection = db.verification_tokens
+password_reset_tokens_collection = db.password_reset_tokens
+payment_transactions_collection = db.payment_transactions
+
+# Payment models
+class PaymentPackage(BaseModel):
+    package_id: str
+    origin_url: str
+    metadata: Optional[Dict[str, str]] = {}
+
+class PaymentTransaction(BaseModel):
+    id: str
+    user_id: Optional[str]
+    session_id: str
+    package_id: str
+    amount: float
+    currency: str = "usd"
+    payment_status: str
+    stripe_status: str
+    metadata: Dict[str, str]
+    created_at: datetime
+    updated_at: datetime
+
+# Payment packages (server-side only for security)
+PAYMENT_PACKAGES = {
+    "premium_monthly": {
+        "name": "Premium Monthly",
+        "amount": 15.00,  # Updated to $15/month as requested
+        "currency": "usd",
+        "subscription_type": "premium",
+        "billing_cycle": "monthly",
+        "trial_days": 7  # 1-week free trial
+    },
+    "premium_annual": {
+        "name": "Premium Annual", 
+        "amount": 150.00,  # Updated to $150/year (16% discount from monthly)
+        "currency": "usd",  
+        "subscription_type": "premium",
+        "billing_cycle": "annual",
+        "trial_days": 7  # 1-week free trial
+    },
+    "enterprise": {
+        "name": "Enterprise Plan",
+        "amount": 299.99,  # Enterprise tier with advanced features
+        "currency": "usd",
+        "subscription_type": "enterprise", 
+        "billing_cycle": "monthly"
+    }
+}
+
+# Initialize Stripe checkout
+stripe_api_key = os.environ.get('STRIPE_API_KEY')
+if not stripe_api_key:
+    logger.warning("STRIPE_API_KEY not found in environment")
+    stripe_checkout = None
+else:
+    # StripeCheckout not available, using mock for now
+    stripe_checkout = None
+    logger.warning("StripeCheckout not available - payment features disabled")
+
+# Payment endpoints
+@api_router.post("/payments/checkout/session")
+async def create_checkout_session(request: Request, payment_data: PaymentPackage, current_user: dict = Depends(get_current_user)):
+    """Create Stripe checkout session for subscription"""
+    try:
+        if not stripe_checkout:
+            raise HTTPException(status_code=500, detail="Payment system not configured")
+        
+        # Validate package
+        if payment_data.package_id not in PAYMENT_PACKAGES:
+            raise HTTPException(status_code=400, detail="Invalid payment package")
+        
+        package = PAYMENT_PACKAGES[payment_data.package_id]
+        
+        # Get host URL and construct webhook URL
+        host_url = str(request.base_url).rstrip('/')
+        webhook_url = f"{host_url}/api/webhook/stripe"
+        stripe_checkout.webhook_url = webhook_url
+        
+        # Build success and cancel URLs
+        success_url = f"{payment_data.origin_url}/payment-success?session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url = f"{payment_data.origin_url}/payment-cancelled"
+        
+        # Prepare metadata
+        metadata = {
+            "user_id": current_user["user_id"],
+            "user_email": current_user["email"],
+            "package_id": payment_data.package_id,
+            "subscription_type": package["subscription_type"],
+            "billing_cycle": package["billing_cycle"],
+            **payment_data.metadata
+        }
+        
+        # Create checkout session
+        checkout_request = CheckoutSessionRequest(
+            amount=package["amount"],
+            currency=package["currency"],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata=metadata
+        )
+        
+        session = await stripe_checkout.create_checkout_session(checkout_request)
+        
+        # Store payment transaction
+        transaction = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user["user_id"],
+            "session_id": session.session_id,
+            "package_id": payment_data.package_id,
+            "amount": package["amount"],
+            "currency": package["currency"],
+            "payment_status": "initiated",
+            "stripe_status": "pending",
+            "metadata": metadata,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await payment_transactions_collection.insert_one(transaction)
+        logger.info(f"Payment session created for user {current_user['email']}: {session.session_id}")
+        
+        return {
+            "url": session.url,
+            "session_id": session.session_id,
+            "package": package
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating checkout session: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create payment session")
+
+@api_router.get("/payments/checkout/status/{session_id}")
+async def get_checkout_status(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Get payment status for a checkout session"""
+    try:
+        if not stripe_checkout:
+            raise HTTPException(status_code=500, detail="Payment system not configured")
+        
+        # Get status from Stripe
+        checkout_status = await stripe_checkout.get_checkout_status(session_id)
+        
+        # Find transaction in database
+        transaction = await payment_transactions_collection.find_one({"session_id": session_id})
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Payment transaction not found")
+        
+        # Update transaction status if changed
+        if transaction["stripe_status"] != checkout_status.status or transaction["payment_status"] != checkout_status.payment_status:
+            await payment_transactions_collection.update_one(
+                {"session_id": session_id},
+                {
+                    "$set": {
+                        "stripe_status": checkout_status.status,
+                        "payment_status": checkout_status.payment_status,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }
+                }
+            )
+            
+            # If payment completed, upgrade user subscription
+            if checkout_status.payment_status == "paid" and transaction["payment_status"] != "paid":
+                await upgrade_user_subscription(transaction["user_id"], transaction["package_id"])
+                logger.info(f"User subscription upgraded: {transaction['user_id']} -> {transaction['package_id']}")
+        
+        return {
+            "session_id": session_id,
+            "status": checkout_status.status,
+            "payment_status": checkout_status.payment_status,
+            "amount_total": checkout_status.amount_total,
+            "currency": checkout_status.currency,
+            "metadata": checkout_status.metadata
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking payment status: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to check payment status")
+
+@api_router.post("/webhook/stripe")
+async def handle_stripe_webhook(request: Request):
+    """Handle Stripe webhook events"""
+    try:
+        if not stripe_checkout:
+            raise HTTPException(status_code=500, detail="Payment system not configured")
+        
+        body = await request.body()
+        signature = request.headers.get("Stripe-Signature")
+        
+        if not signature:
+            raise HTTPException(status_code=400, detail="Missing Stripe signature")
+        
+        # Handle webhook
+        webhook_response = await stripe_checkout.handle_webhook(body, signature)
+        
+        logger.info(f"Stripe webhook received: {webhook_response.event_type} for session {webhook_response.session_id}")
+        
+        # Update transaction based on webhook
+        if webhook_response.session_id:
+            await payment_transactions_collection.update_one(
+                {"session_id": webhook_response.session_id},
+                {
+                    "$set": {
+                        "stripe_status": webhook_response.event_type,
+                        "payment_status": webhook_response.payment_status,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }
+                }
+            )
+            
+            # If payment succeeded, upgrade user
+            if webhook_response.payment_status == "paid":
+                transaction = await payment_transactions_collection.find_one({"session_id": webhook_response.session_id})
+                if transaction:
+                    await upgrade_user_subscription(transaction["user_id"], transaction["package_id"])
+        
+        return {"status": "success"}
+        
+    except Exception as e:
+        logger.error(f"Stripe webhook error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Webhook processing failed")
+
+async def upgrade_user_subscription(user_id: str, package_id: str):
+    """Upgrade user subscription based on payment"""
+    try:
+        package = PAYMENT_PACKAGES.get(package_id)
+        if not package:
+            logger.error(f"Invalid package ID: {package_id}")
+            return
+        
+        # Calculate subscription end date
+        if package["billing_cycle"] == "monthly":
+            subscription_end = datetime.now(timezone.utc) + timedelta(days=30)
+        elif package["billing_cycle"] == "annual":
+            subscription_end = datetime.now(timezone.utc) + timedelta(days=365)
+        else:
+            subscription_end = datetime.now(timezone.utc) + timedelta(days=30)
+        
+        # Update user subscription - clear trial data when upgrading to paid
+        update_data = {
+            "subscription_type": package["subscription_type"],
+            "subscription_end": subscription_end.isoformat(),
+            "subscription_package": package_id,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Clear trial data if user was on trial
+        user = await users_collection.find_one({"id": user_id})
+        if user and user.get("subscription_type") == UserType.TRIAL:
+            update_data.update({
+                "trial_start": None,
+                "trial_end": None,
+                "converted_from_trial": True
+            })
+        
+        await users_collection.update_one(
+            {"id": user_id},
+            {"$set": update_data}
+        )
+        
+        logger.info(f"User {user_id} subscription upgraded to {package_id}")
+        
+    except Exception as e:
+        logger.error(f"Error upgrading user subscription: {str(e)}")
+
+@api_router.get("/payments/packages")
+async def get_payment_packages():
+    """Get available payment packages"""
+    return {
+        "packages": PAYMENT_PACKAGES
+    }
+
+@api_router.get("/payments/history")
+async def get_payment_history(current_user: dict = Depends(get_current_user)):
+    """Get payment history for current user"""
+    try:
+        transactions = await payment_transactions_collection.find(
+            {"user_id": current_user["user_id"]}
+        ).sort("created_at", -1).to_list(length=50)
+        
+        return {
+            "transactions": transactions
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching payment history: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch payment history")
+
+@api_router.get("/subscription/features")
+async def get_subscription_features(current_user: dict = Depends(get_current_user)):
+    """Get current user's subscription features and limits"""
+    try:
+        from auth import get_subscription_limits, is_trial_active, get_trial_days_remaining
+        
+        user = await users_collection.find_one({"id": current_user["user_id"]})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        subscription_type = user.get("subscription_type", UserType.FREE)
+        limits = get_subscription_limits(subscription_type)
+        
+        # Add trial information if applicable
+        trial_info = {}
+        if subscription_type == UserType.TRIAL:
+            trial_info = {
+                "is_trial": True,
+                "trial_active": is_trial_active(user),
+                "days_remaining": get_trial_days_remaining(user),
+                "trial_end": user.get("trial_end")
+            }
+        else:
+            trial_info = {
+                "is_trial": False,
+                "can_start_trial": not user.get("trial_activated", False) and subscription_type == UserType.FREE
+            }
+        
+        return {
+            "subscription_type": subscription_type,
+            "limits": limits,
+            "trial_info": trial_info,
+            "pricing_tiers": {
+                "free": {
+                    "name": "Free Tier",
+                    "price": 0,
+                    "features": [
+                        "Live 2D radar data",
+                        "Manual/nearest radar selection", 
+                        "All map controls",
+                        "Max 100 animation frames",
+                        "Max 5x speed",
+                        "Location-based AI predictions",
+                        "Visual prediction data access"
+                    ]
+                },
+                "premium": {
+                    "name": "Premium",
+                    "price": 15.00,
+                    "billing": "monthly",
+                    "trial_days": 7,
+                    "features": [
+                        "Everything in Free",
+                        "Unlimited frames & speed",
+                        "2D & 3D radar data",
+                        "Advanced ML predictions",
+                        "Real-time storm tracking",
+                        "Enhanced AI alerts",
+                        "AI chatbot access",
+                        "Priority support",
+                        "Data export"
+                    ]
+                }
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching subscription features: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch subscription features")
+
+# Authentication endpoints
+@api_router.post("/auth/register", response_model=dict)
+async def register_user(user_data: UserCreate):
+    """Register a new user with email verification"""
+    try:
+        # Check if user already exists
+        existing_user = await users_collection.find_one({"email": user_data.email})
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Hash password
+        hashed_password = hash_password(user_data.password)
+        
+        # Create user document
+        user_id = str(uuid.uuid4())
+        verification_token = generate_verification_token()
+        
+        user_doc = {
+            "id": user_id,
+            "email": user_data.email,
+            "full_name": user_data.full_name,
+            "password_hash": hashed_password,
+            "email_verified": False,
+            "subscription_type": UserType.FREE,
+            "is_admin": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_login": None
+        }
+        
+        # Insert user
+        await users_collection.insert_one(user_doc)
+        
+        # Store verification token
+        await verification_tokens_collection.insert_one({
+            "token": verification_token,
+            "user_id": user_id,
+            "email": user_data.email,
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=24),
+            "created_at": datetime.now(timezone.utc)
+        })
+        
+        # Send verification email
+        await send_verification_email(user_data.email, verification_token, user_data.full_name)
+        
+        return {
+            "message": "User registered successfully. Please check your email for verification.",
+            "user_id": user_id,
+            "email": user_data.email
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Registration failed")
+
+@api_router.post("/auth/login", response_model=TokenResponse)
+async def login_user(login_data: UserLogin):
+    """Login user and return JWT tokens"""
+    try:
+        # Find user
+        user = await users_collection.find_one({"email": login_data.email})
+        if not user or not verify_password(login_data.password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Check if email is verified for premium features
+        if not user["email_verified"] and user["subscription_type"] != UserType.FREE:
+            raise HTTPException(status_code=401, detail="Please verify your email address")
+        
+        # Update last login
+        await users_collection.update_one(
+            {"id": user["id"]},
+            {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        # Create tokens
+        token_data = {"sub": user["id"], "email": user["email"]}
+        access_token = create_access_token(token_data)
+        refresh_token = create_refresh_token(token_data)
+        
+        # Create user response
+        user_response = UserResponse(
+            id=user["id"],
+            email=user["email"],
+            full_name=user["full_name"],
+            email_verified=user["email_verified"],
+            subscription_type=user["subscription_type"],
+            is_admin=user["is_admin"],
+            created_at=datetime.fromisoformat(user["created_at"])
+        )
+        
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user=user_response
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Login failed")
+
+@api_router.post("/auth/verify-email")
+async def verify_email(verification: EmailVerification):
+    """Verify user email address"""
+    try:
+        # Find verification token
+        token_doc = await verification_tokens_collection.find_one({"token": verification.token})
+        if not token_doc:
+            raise HTTPException(status_code=400, detail="Invalid verification token")
+        
+        # Check expiration
+        if datetime.now(timezone.utc) > token_doc["expires_at"]:
+            raise HTTPException(status_code=400, detail="Verification token expired")
+        
+        # Update user
+        await users_collection.update_one(
+            {"id": token_doc["user_id"]},
+            {"$set": {"email_verified": True}}
+        )
+        
+        # Delete verification token
+        await verification_tokens_collection.delete_one({"token": verification.token})
+        
+        return {"message": "Email verified successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email verification error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Email verification failed")
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(reset_data: PasswordReset):
+    """Send password reset email"""
+    try:
+        # Find user
+        user = await users_collection.find_one({"email": reset_data.email})
+        if not user:
+            # Don't reveal if email exists
+            return {"message": "If the email exists, a reset link has been sent"}
+        
+        # Generate reset token
+        reset_token = generate_verification_token()
+        
+        # Store reset token
+        await password_reset_tokens_collection.insert_one({
+            "token": reset_token,
+            "user_id": user["id"],
+            "email": user["email"],
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=1),
+            "created_at": datetime.now(timezone.utc)
+        })
+        
+        # Send reset email
+        await send_password_reset_email(user["email"], reset_token, user["full_name"])
+        
+        return {"message": "If the email exists, a reset link has been sent"}
+        
+    except Exception as e:
+        logger.error(f"Password reset error: {str(e)}")
+        return {"message": "If the email exists, a reset link has been sent"}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(reset_data: PasswordResetConfirm):
+    """Reset user password with token"""
+    try:
+        # Find reset token
+        token_doc = await password_reset_tokens_collection.find_one({"token": reset_data.token})
+        if not token_doc:
+            raise HTTPException(status_code=400, detail="Invalid reset token")
+        
+        # Check expiration
+        if datetime.now(timezone.utc) > token_doc["expires_at"]:
+            raise HTTPException(status_code=400, detail="Reset token expired")
+        
+        # Hash new password
+        new_password_hash = hash_password(reset_data.new_password)
+        
+        # Update user password
+        await users_collection.update_one(
+            {"id": token_doc["user_id"]},
+            {"$set": {"password_hash": new_password_hash}}
+        )
+        
+        # Delete reset token
+        await password_reset_tokens_collection.delete_one({"token": reset_data.token})
+        
+        return {"message": "Password reset successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Password reset confirmation error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Password reset failed")
+
+@api_router.post("/auth/admin-access")
+async def grant_admin_access(admin_data: dict):
+    """Secret method to grant admin access"""
+    try:
+        email = admin_data.get("email")
+        secret_code = admin_data.get("secret_code")
+        
+        if not email or not secret_code:
+            raise HTTPException(status_code=400, detail="Email and secret code required")
+        
+        if not check_admin_secret(email, secret_code):
+            raise HTTPException(status_code=403, detail="Invalid admin credentials")
+        
+        # Find and update user
+        result = await users_collection.update_one(
+            {"email": email},
+            {"$set": {
+                "is_admin": True,
+                "subscription_type": UserType.ADMIN,
+                "email_verified": True
+            }}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {"message": f"Admin access granted to {email}"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Admin access error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Admin access failed")
+
+@api_router.get("/auth/me", response_model=UserResponse)
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """Get current user information"""
+    try:
+        user = await users_collection.find_one({"id": current_user["user_id"]})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return UserResponse(
+            id=user["id"],
+            email=user["email"],
+            full_name=user["full_name"],
+            email_verified=user["email_verified"],
+            subscription_type=user["subscription_type"],
+            is_admin=user["is_admin"],
+            created_at=datetime.fromisoformat(user["created_at"])
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get user error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get user information")
+
+@api_router.post("/auth/start-trial")
+async def start_premium_trial(current_user: dict = Depends(get_current_user)):
+    """Start 7-day free trial for premium features"""
+    try:
+        user = await users_collection.find_one({"id": current_user["user_id"]})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if user is already premium or has used trial
+        if user.get("subscription_type") == UserType.PREMIUM:
+            raise HTTPException(status_code=400, detail="User already has premium subscription")
+        
+        if user.get("trial_activated", False):
+            raise HTTPException(status_code=400, detail="Free trial already used")
+        
+        # Start trial
+        trial_data = start_free_trial(current_user["user_id"])
+        
+        # Update user in database
+        await users_collection.update_one(
+            {"id": current_user["user_id"]},
+            {
+                "$set": {
+                    "subscription_type": UserType.TRIAL,
+                    "trial_start": trial_data["trial_start"],
+                    "trial_end": trial_data["trial_end"],
+                    "trial_activated": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        )
+        
+        return {
+            "message": "Free trial activated successfully",
+            "trial_end": trial_data["trial_end"],
+            "trial_days": 7,
+            "features_unlocked": [
+                "Unlimited radar frames",
+                "2D and 3D radar data",
+                "Advanced ML tornado predictions",
+                "Real-time storm tracking",
+                "Enhanced AI alerts",
+                "AI chatbot access",
+                "Priority support"
+            ]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Trial activation error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to activate trial")
+
+@api_router.get("/auth/trial-status")
+async def get_trial_status(current_user: dict = Depends(get_current_user)):
+    """Get user's trial status and days remaining"""
+    try:
+        user = await users_collection.find_one({"id": current_user["user_id"]})
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        trial_active = is_trial_active(user)
+        days_remaining = get_trial_days_remaining(user)
+        
+        return {
+            "trial_active": trial_active,
+            "days_remaining": days_remaining,
+            "trial_activated": user.get("trial_activated", False),
+            "subscription_type": user.get("subscription_type", UserType.FREE),
+            "trial_end": user.get("trial_end"),
+            "can_start_trial": not user.get("trial_activated", False) and user.get("subscription_type") == UserType.FREE
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Trial status error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get trial status")
+
+# Protected endpoint example
+@api_router.get("/premium/advanced-features")
+async def get_advanced_features(current_user: dict = Depends(get_current_user)):
+    """Get advanced features for premium users"""
+    user = await users_collection.find_one({"id": current_user["user_id"]})
+    
+    if not check_subscription_limits(user["subscription_type"], "advanced_features"):
+        raise HTTPException(status_code=403, detail="Premium subscription required")
+    
+    return {
+        "features": [
+            "Real-time tornado tracking",
+            "Advanced storm predictions",
+            "Historical radar data",
+            "Custom alert zones",
+            "API access",
+            "Priority support"
+        ]
+    }
+
+# Initialize Claude AI chat
+# claude_chat = LlmChat(  # LlmChat not available, commenting out
+#     api_key=os.environ.get('EMERGENT_LLM_KEY'),
+#     session_id="tornado-prediction-system",
+#     system_message="""You are an advanced meteorological AI specializing in tornado prediction and severe weather analysis.
+#     You analyze radar data patterns including hook echoes, mesocyclones, velocity couplets, and storm relative velocity to predict tornado formation.
+#     Your expertise includes:
+#     - Identifying supercell thunderstorm signatures
+#     - Predicting tornado touchdown locations and paths
+#     - Assessing storm intensity and potential damage
+#     - Providing time-sensitive weather warnings
+#
+#     Always provide clear, actionable weather information focused on public safety."""
+# ).with_model("anthropic", "claude-3-7-sonnet-20250219")
+
+# Pydantic Models
+class RadarStation(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    station_id: str
+    name: str
+    latitude: float
+    longitude: float
+    elevation: int
+    state: str
+    status: str = "operational"
+
+class RadarData(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    station_id: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    reflectivity_url: Optional[str] = None
+    velocity_url: Optional[str] = None
+    data_type: str = "reflectivity"
+    
+class TornadoAlert(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    station_id: str
+    alert_type: str  # "watch", "warning", "prediction"
+    severity: int  # 1-5 scale
+    predicted_location: Dict[str, float]  # lat/lng
+    predicted_path: List[Dict[str, float]]
+    confidence: float  # 0-100%
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    message: str
+    estimated_touchdown_time: Optional[datetime] = None
+
+class ChatMessage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    message: str
+    response: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    context: Optional[Dict[str, Any]] = None
+
+class UserSubscription(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    tier: str = "free"  # "free" or "premium"
+    expires_at: Optional[datetime] = None
+    features: List[str] = ["basic_radar", "ai_alerts"]
+
+# Initialize radar stations data
+NEXRAD_STATIONS = [
+    {"station_id": "KABX", "name": "Albuquerque, NM", "latitude": 35.1498, "longitude": -106.8239, "elevation": 1789, "state": "NM"},
+    {"station_id": "KAMA", "name": "Amarillo, TX", "latitude": 35.2334, "longitude": -101.7092, "elevation": 1006, "state": "TX"},
+    {"station_id": "KAMX", "name": "Miami, FL", "latitude": 25.6111, "longitude": -80.4128, "elevation": 4, "state": "FL"},
+    {"station_id": "KAPX", "name": "Gaylord, MI", "latitude": 44.9071, "longitude": -84.7198, "elevation": 446, "state": "MI"},
+    {"station_id": "KARX", "name": "La Crosse, WI", "latitude": 43.8228, "longitude": -91.1915, "elevation": 390, "state": "WI"},
+    {"station_id": "KATX", "name": "Seattle, WA", "latitude": 48.1946, "longitude": -122.4958, "elevation": 151, "state": "WA"},
+    {"station_id": "KBBX", "name": "Beale AFB, CA", "latitude": 39.4962, "longitude": -121.6316, "elevation": 53, "state": "CA"},
+    {"station_id": "KBGM", "name": "Binghamton, NY", "latitude": 42.1997, "longitude": -75.9847, "elevation": 490, "state": "NY"},
+    {"station_id": "KBHX", "name": "Eureka, CA", "latitude": 40.4986, "longitude": -124.2921, "elevation": 732, "state": "CA"},
+    {"station_id": "KBIS", "name": "Bismarck, ND", "latitude": 46.7708, "longitude": -100.7606, "elevation": 505, "state": "ND"},
+    {"station_id": "KBLX", "name": "Billings, MT", "latitude": 45.8537, "longitude": -108.6063, "elevation": 1097, "state": "MT"},
+    {"station_id": "KBMX", "name": "Birmingham, AL", "latitude": 33.1722, "longitude": -86.7698, "elevation": 197, "state": "AL"},
+    {"station_id": "KBOX", "name": "Boston, MA", "latitude": 41.9559, "longitude": -71.1367, "elevation": 36, "state": "MA"},
+    {"station_id": "KBRO", "name": "Brownsville, TX", "latitude": 25.9159, "longitude": -97.4189, "elevation": 7, "state": "TX"},
+    {"station_id": "KBUF", "name": "Buffalo, NY", "latitude": 42.9488, "longitude": -78.7369, "elevation": 211, "state": "NY"},
+    {"station_id": "KBYX", "name": "Key West, FL", "latitude": 24.5974, "longitude": -81.7032, "elevation": 3, "state": "FL"},
+    {"station_id": "KCAE", "name": "Columbia, SC", "latitude": 33.9487, "longitude": -81.1184, "elevation": 70, "state": "SC"},
+    {"station_id": "KCBW", "name": "Houlton, ME", "latitude": 46.0392, "longitude": -67.8067, "elevation": 227, "state": "ME"},
+    {"station_id": "KCBX", "name": "Boise, ID", "latitude": 43.4907, "longitude": -116.2353, "elevation": 933, "state": "ID"},
+    {"station_id": "KCCX", "name": "State College, PA", "latitude": 40.9232, "longitude": -78.0037, "elevation": 733, "state": "PA"},
+    {"station_id": "KCLE", "name": "Cleveland, OH", "latitude": 41.4131, "longitude": -81.8597, "elevation": 233, "state": "OH"},
+    {"station_id": "KCLX", "name": "Charleston, SC", "latitude": 32.6555, "longitude": -81.0422, "elevation": 30, "state": "SC"},
+    {"station_id": "KCRP", "name": "Corpus Christi, TX", "latitude": 27.7842, "longitude": -97.5114, "elevation": 14, "state": "TX"},
+    {"station_id": "KCXX", "name": "Burlington, VT", "latitude": 44.5110, "longitude": -73.1666, "elevation": 97, "state": "VT"},
+    {"station_id": "KCYS", "name": "Cheyenne, WY", "latitude": 41.1519, "longitude": -104.8061, "elevation": 1868, "state": "WY"},
+    {"station_id": "KDAX", "name": "Sacramento, CA", "latitude": 38.5011, "longitude": -121.6778, "elevation": 9, "state": "CA"},
+    {"station_id": "KDDC", "name": "Dodge City, KS", "latitude": 37.7608, "longitude": -99.9689, "elevation": 789, "state": "KS"},
+    {"station_id": "KDFX", "name": "Laughlin AFB, TX", "latitude": 29.2728, "longitude": -100.2803, "elevation": 345, "state": "TX"},
+    {"station_id": "KDGX", "name": "Jackson, MS", "latitude": 32.2798, "longitude": -90.0803, "elevation": 45, "state": "MS"},
+    {"station_id": "KDIX", "name": "Philadelphia, PA", "latitude": 39.9469, "longitude": -74.4111, "elevation": 45, "state": "PA"},
+    {"station_id": "KDLH", "name": "Duluth, MN", "latitude": 46.8368, "longitude": -92.2097, "elevation": 435, "state": "MN"},
+    {"station_id": "KDMX", "name": "Des Moines, IA", "latitude": 41.7312, "longitude": -93.7229, "elevation": 299, "state": "IA"},
+    {"station_id": "KDOX", "name": "Dover AFB, DE", "latitude": 38.8256, "longitude": -75.4400, "elevation": 15, "state": "DE"},
+    {"station_id": "KDTX", "name": "Detroit, MI", "latitude": 42.6999, "longitude": -83.4719, "elevation": 327, "state": "MI"},
+    {"station_id": "KDVN", "name": "Davenport, IA", "latitude": 41.6116, "longitude": -90.5809, "elevation": 230, "state": "IA"},
+    {"station_id": "KEAX", "name": "Kansas City, MO", "latitude": 38.8103, "longitude": -94.2645, "elevation": 303, "state": "MO"},
+    {"station_id": "KEMX", "name": "Tucson, AZ", "latitude": 31.8937, "longitude": -110.6304, "elevation": 1586, "state": "AZ"},
+    {"station_id": "KENX", "name": "Albany, NY", "latitude": 42.5864, "longitude": -74.0640, "elevation": 556, "state": "NY"},
+    {"station_id": "KEOX", "name": "Fort Rucker, AL", "latitude": 31.4603, "longitude": -85.4594, "elevation": 132, "state": "AL"},
+    {"station_id": "KEPZ", "name": "El Paso, TX", "latitude": 31.8731, "longitude": -106.6979, "elevation": 1251, "state": "TX"},
+    {"station_id": "KESX", "name": "Las Vegas, NV", "latitude": 35.7011, "longitude": -114.8917, "elevation": 1483, "state": "NV"},
+    {"station_id": "KEVX", "name": "Eglin AFB, FL", "latitude": 30.5644, "longitude": -85.9214, "elevation": 43, "state": "FL"},
+    {"station_id": "KEWX", "name": "Austin/San Antonio, TX", "latitude": 29.7040, "longitude": -98.0289, "elevation": 193, "state": "TX"},
+    {"station_id": "KEYX", "name": "Edwards AFB, CA", "latitude": 35.0979, "longitude": -117.5608, "elevation": 840, "state": "CA"},
+    {"station_id": "KFCX", "name": "Roanoke, VA", "latitude": 37.0242, "longitude": -80.2737, "elevation": 874, "state": "VA"},
+    {"station_id": "KFDR", "name": "Altus AFB, OK", "latitude": 34.3621, "longitude": -98.9767, "elevation": 386, "state": "OK"},
+    {"station_id": "KFDX", "name": "Cannon AFB, NM", "latitude": 34.6342, "longitude": -103.6186, "elevation": 1417, "state": "NM"},
+    {"station_id": "KFFC", "name": "Atlanta, GA", "latitude": 33.3636, "longitude": -84.5658, "elevation": 262, "state": "GA"},
+    {"station_id": "KFSD", "name": "Sioux Falls, SD", "latitude": 43.5877, "longitude": -96.7293, "elevation": 436, "state": "SD"},
+    {"station_id": "KFSX", "name": "Flagstaff, AZ", "latitude": 34.5742, "longitude": -111.1983, "elevation": 2261, "state": "AZ"},
+    {"station_id": "KFTG", "name": "Denver, CO", "latitude": 39.7866, "longitude": -104.5458, "elevation": 1675, "state": "CO"},
+    {"station_id": "KFWS", "name": "Dallas/Fort Worth, TX", "latitude": 32.5730, "longitude": -97.3032, "elevation": 208, "state": "TX"},
+    {"station_id": "KGGW", "name": "Glasgow, MT", "latitude": 48.2065, "longitude": -106.6250, "elevation": 694, "state": "MT"},
+    {"station_id": "KGJX", "name": "Grand Junction, CO", "latitude": 39.0620, "longitude": -108.2137, "elevation": 3046, "state": "CO"},
+    {"station_id": "KGLD", "name": "Goodland, KS", "latitude": 39.3667, "longitude": -101.7000, "elevation": 1113, "state": "KS"},
+    {"station_id": "KGRB", "name": "Green Bay, WI", "latitude": 44.4985, "longitude": -88.1119, "elevation": 208, "state": "WI"},
+    {"station_id": "KGRK", "name": "Fort Hood, TX", "latitude": 30.7218, "longitude": -97.3830, "elevation": 164, "state": "TX"},
+    {"station_id": "KGRR", "name": "Grand Rapids, MI", "latitude": 42.8939, "longitude": -85.5449, "elevation": 237, "state": "MI"},
+    {"station_id": "KGSP", "name": "Greer, SC", "latitude": 34.8833, "longitude": -82.2202, "elevation": 287, "state": "SC"},
+    {"station_id": "KGWX", "name": "Columbus, MS", "latitude": 33.8967, "longitude": -88.3290, "elevation": 145, "state": "MS"},
+    {"station_id": "KGYX", "name": "Portland, ME", "latitude": 43.8913, "longitude": -70.2560, "elevation": 83, "state": "ME"},
+    {"station_id": "KHDX", "name": "Holloman AFB, NM", "latitude": 33.0765, "longitude": -106.1219, "elevation": 1287, "state": "NM"},
+    {"station_id": "KHGX", "name": "Houston, TX", "latitude": 29.4719, "longitude": -95.0792, "elevation": 5, "state": "TX"},
+    {"station_id": "KHNX", "name": "San Joaquin Valley, CA", "latitude": 36.3142, "longitude": -119.6319, "elevation": 74, "state": "CA"},
+    {"station_id": "KHPX", "name": "Fort Campbell, KY", "latitude": 36.7369, "longitude": -87.2856, "elevation": 176, "state": "KY"},
+    {"station_id": "KHTX", "name": "Huntsville, AL", "latitude": 34.9306, "longitude": -86.0831, "elevation": 537, "state": "AL"},
+    {"station_id": "KICT", "name": "Wichita, KS", "latitude": 37.6546, "longitude": -97.4431, "elevation": 407, "state": "KS"},
+    {"station_id": "KICX", "name": "Cedar City, UT", "latitude": 37.5908, "longitude": -112.8619, "elevation": 3231, "state": "UT"},
+    {"station_id": "KILN", "name": "Cincinnati, OH", "latitude": 39.4203, "longitude": -83.8217, "elevation": 322, "state": "OH"},
+    {"station_id": "KILX", "name": "Lincoln, IL", "latitude": 40.1506, "longitude": -89.3368, "elevation": 177, "state": "IL"},
+    {"station_id": "KIND", "name": "Indianapolis, IN", "latitude": 39.7075, "longitude": -86.2803, "elevation": 241, "state": "IN"},
+    {"station_id": "KINX", "name": "Tulsa, OK", "latitude": 36.1750, "longitude": -95.5644, "elevation": 204, "state": "OK"},
+    {"station_id": "KIWA", "name": "Phoenix, AZ", "latitude": 33.2890, "longitude": -111.6700, "elevation": 412, "state": "AZ"},
+    {"station_id": "KIWX", "name": "North Webster, IN", "latitude": 41.3589, "longitude": -85.7000, "elevation": 290, "state": "IN"},
+    {"station_id": "KJAX", "name": "Jacksonville, FL", "latitude": 30.4847, "longitude": -81.7019, "elevation": 10, "state": "FL"},
+    {"station_id": "KJGX", "name": "Robins AFB, GA", "latitude": 32.6755, "longitude": -83.3511, "elevation": 159, "state": "GA"},
+    {"station_id": "KJKL", "name": "Jackson, KY", "latitude": 37.5906, "longitude": -83.3130, "elevation": 414, "state": "KY"},
+    {"station_id": "KLBB", "name": "Lubbock, TX", "latitude": 33.6539, "longitude": -101.8142, "elevation": 993, "state": "TX"},
+    {"station_id": "KLCH", "name": "Lake Charles, LA", "latitude": 30.1253, "longitude": -93.2161, "elevation": 4, "state": "LA"},
+    {"station_id": "KLIX", "name": "New Orleans, LA", "latitude": 30.3367, "longitude": -89.8256, "elevation": 7, "state": "LA"},
+    {"station_id": "KLNX", "name": "North Platte, NE", "latitude": 41.9578, "longitude": -100.5758, "elevation": 905, "state": "NE"},
+    {"station_id": "KLOT", "name": "Chicago, IL", "latitude": 41.6044, "longitude": -88.0844, "elevation": 202, "state": "IL"},
+    {"station_id": "KLRX", "name": "Elko, NV", "latitude": 40.7397, "longitude": -116.8025, "elevation": 2056, "state": "NV"},
+    {"station_id": "KLSX", "name": "St. Louis, MO", "latitude": 38.6986, "longitude": -90.6828, "elevation": 185, "state": "MO"},
+    {"station_id": "KLTX", "name": "Wilmington, NC", "latitude": 33.9892, "longitude": -78.4289, "elevation": 20, "state": "NC"},
+    {"station_id": "KLVX", "name": "Louisville, KY", "latitude": 37.9753, "longitude": -85.9436, "elevation": 219, "state": "KY"},
+    {"station_id": "KLZK", "name": "Little Rock, AR", "latitude": 34.8364, "longitude": -92.2622, "elevation": 173, "state": "AR"},
+    {"station_id": "KMAF", "name": "Midland/Odessa, TX", "latitude": 31.9433, "longitude": -102.1892, "elevation": 874, "state": "TX"},
+    {"station_id": "KMAX", "name": "Medford, OR", "latitude": 42.0811, "longitude": -122.7172, "elevation": 2290, "state": "OR"},
+    {"station_id": "KMBX", "name": "Minot AFB, ND", "latitude": 48.3925, "longitude": -100.8644, "elevation": 455, "state": "ND"},
+    {"station_id": "KMHX", "name": "Morehead City, NC", "latitude": 34.7756, "longitude": -76.8761, "elevation": 9, "state": "NC"},
+    {"station_id": "KMKX", "name": "Milwaukee, WI", "latitude": 42.9678, "longitude": -88.5506, "elevation": 292, "state": "WI"},
+    {"station_id": "KMLB", "name": "Melbourne, FL", "latitude": 28.1133, "longitude": -80.6542, "elevation": 11, "state": "FL"},
+    {"station_id": "KMOB", "name": "Mobile, AL", "latitude": 30.6794, "longitude": -88.2397, "elevation": 63, "state": "AL"},
+    {"station_id": "KMPX", "name": "Minneapolis, MN", "latitude": 44.8489, "longitude": -93.5653, "elevation": 288, "state": "MN"},
+    {"station_id": "KMQT", "name": "Marquette, MI", "latitude": 46.5311, "longitude": -87.5486, "elevation": 430, "state": "MI"},
+    {"station_id": "KMRX", "name": "Knoxville, TN", "latitude": 36.1686, "longitude": -83.4019, "elevation": 408, "state": "TN"},
+    {"station_id": "KMSX", "name": "Missoula, MT", "latitude": 47.0414, "longitude": -113.9864, "elevation": 2394, "state": "MT"},
+    {"station_id": "KMTX", "name": "Salt Lake City, UT", "latitude": 41.2628, "longitude": -111.9744, "elevation": 1969, "state": "UT"},
+    {"station_id": "KMUX", "name": "San Francisco, CA", "latitude": 37.1550, "longitude": -121.8983, "elevation": 1057, "state": "CA"},
+    {"station_id": "KMVX", "name": "Grand Forks, ND", "latitude": 47.5280, "longitude": -97.3256, "elevation": 300, "state": "ND"},
+    {"station_id": "KMXX", "name": "Maxwell AFB, AL", "latitude": 32.5367, "longitude": -85.7897, "elevation": 122, "state": "AL"},
+    {"station_id": "KNKX", "name": "San Diego, CA", "latitude": 32.9189, "longitude": -117.0422, "elevation": 291, "state": "CA"},
+    {"station_id": "KNQA", "name": "Millington, TN", "latitude": 35.3447, "longitude": -89.8733, "elevation": 86, "state": "TN"},
+    {"station_id": "KOAX", "name": "Omaha, NE", "latitude": 41.3203, "longitude": -96.3669, "elevation": 350, "state": "NE"},
+    {"station_id": "KOHX", "name": "Nashville, TN", "latitude": 36.2472, "longitude": -86.5625, "elevation": 176, "state": "TN"},
+    {"station_id": "KOKX", "name": "New York, NY", "latitude": 40.8656, "longitude": -72.8644, "elevation": 26, "state": "NY"},
+    {"station_id": "KOTX", "name": "Spokane, WA", "latitude": 47.6803, "longitude": -117.6267, "elevation": 727, "state": "WA"},
+    {"station_id": "KPAH", "name": "Paducah, KY", "latitude": 37.0683, "longitude": -88.7719, "elevation": 119, "state": "KY"},
+    {"station_id": "KPBZ", "name": "Pittsburgh, PA", "latitude": 40.5317, "longitude": -80.2181, "elevation": 361, "state": "PA"},
+    {"station_id": "KPDT", "name": "Pendleton, OR", "latitude": 45.6906, "longitude": -118.8528, "elevation": 462, "state": "OR"},
+    {"station_id": "KPOE", "name": "Fort Polk, LA", "latitude": 31.1553, "longitude": -92.9758, "elevation": 124, "state": "LA"},
+    {"station_id": "KPUX", "name": "Pueblo, CO", "latitude": 38.4594, "longitude": -104.1814, "elevation": 1600, "state": "CO"},
+    {"station_id": "KRAX", "name": "Raleigh/Durham, NC", "latitude": 35.6650, "longitude": -78.4897, "elevation": 106, "state": "NC"},
+    {"station_id": "KRGX", "name": "Reno, NV", "latitude": 39.7542, "longitude": -119.4622, "elevation": 2530, "state": "NV"},
+    {"station_id": "KRIW", "name": "Riverton, WY", "latitude": 43.0661, "longitude": -108.4772, "elevation": 1697, "state": "WY"},
+    {"station_id": "KRLX", "name": "Charleston, WV", "latitude": 38.3111, "longitude": -81.7228, "elevation": 329, "state": "WV"},
+    {"station_id": "KRMX", "name": "Griffiss AFB, NY", "latitude": 43.4678, "longitude": -75.4581, "elevation": 462, "state": "NY"},
+    {"station_id": "KRTX", "name": "Portland, OR", "latitude": 45.7150, "longitude": -122.9650, "elevation": 479, "state": "OR"},
+    {"station_id": "KSFX", "name": "Pocatello, ID", "latitude": 43.1056, "longitude": -112.6861, "elevation": 1364, "state": "ID"},
+    {"station_id": "KSGF", "name": "Springfield, MO", "latitude": 37.2353, "longitude": -93.4003, "elevation": 390, "state": "MO"},
+    {"station_id": "KSHV", "name": "Shreveport, LA", "latitude": 32.4508, "longitude": -93.8414, "elevation": 83, "state": "LA"},
+    {"station_id": "KSJT", "name": "San Angelo, TX", "latitude": 31.3711, "longitude": -100.4925, "elevation": 576, "state": "TX"},
+    {"station_id": "KSOX", "name": "Santa Ana Mountains, CA", "latitude": 33.8178, "longitude": -117.6361, "elevation": 923, "state": "CA"},
+    {"station_id": "KSRX", "name": "Western Arkansas", "latitude": 35.2908, "longitude": -94.3619, "elevation": 195, "state": "AR"},
+    {"station_id": "KTBW", "name": "Tampa, FL", "latitude": 27.7056, "longitude": -82.4019, "elevation": 12, "state": "FL"},
+    {"station_id": "KTFX", "name": "Great Falls, MT", "latitude": 47.4597, "longitude": -111.3853, "elevation": 1132, "state": "MT"},
+    {"station_id": "KTLH", "name": "Tallahassee, FL", "latitude": 30.3975, "longitude": -84.3289, "elevation": 19, "state": "FL"},
+    {"station_id": "KTLX", "name": "Oklahoma City, OK", "latitude": 35.3331, "longitude": -97.2775, "elevation": 370, "state": "OK"},
+    {"station_id": "KTWX", "name": "Topeka, KS", "latitude": 38.9969, "longitude": -96.2325, "elevation": 417, "state": "KS"},
+    {"station_id": "KTYX", "name": "Montague, NY", "latitude": 43.7556, "longitude": -75.6800, "elevation": 562, "state": "NY"},
+    {"station_id": "KUDX", "name": "Rapid City, SD", "latitude": 44.1250, "longitude": -102.8297, "elevation": 919, "state": "SD"},
+    {"station_id": "KUEX", "name": "Hastings, NE", "latitude": 40.3208, "longitude": -98.4419, "elevation": 602, "state": "NE"},
+    {"station_id": "KVAX", "name": "Moody AFB, GA", "latitude": 30.8903, "longitude": -83.0019, "elevation": 54, "state": "GA"},
+    {"station_id": "KVBX", "name": "Vandenberg AFB, CA", "latitude": 34.8381, "longitude": -120.3975, "elevation": 376, "state": "CA"},
+    {"station_id": "KVNX", "name": "Vance AFB, OK", "latitude": 36.7408, "longitude": -98.1278, "elevation": 369, "state": "OK"},
+    {"station_id": "KVTX", "name": "Los Angeles, CA", "latitude": 34.4119, "longitude": -119.1794, "elevation": 831, "state": "CA"},
+    {"station_id": "KVWX", "name": "Evansville, IN", "latitude": 38.2603, "longitude": -87.7247, "elevation": 168, "state": "IN"},
+    {"station_id": "KYUX", "name": "Yuma, AZ", "latitude": 32.4953, "longitude": -114.6567, "elevation": 53, "state": "AZ"}
+]
+
+# --------------------------- RADAR STATIONS INIT ---------------------------
+
+async def init_radar_stations():
+    """Initialize radar stations in database"""
+    existing_count = await db.radar_stations.count_documents({})
+    if existing_count == 0:
+        stations = [RadarStation(**station) for station in NEXRAD_STATIONS]
+        station_dicts = [station.dict() for station in stations]
+        await db.radar_stations.insert_many(station_dicts)
+        logger.info(f"Initialized {len(stations)} radar stations")
+
+
+# ---------------------- HF REMOTE ASSISTANT (FREE) ------------------------
+
+import os
+import asyncio
+from huggingface_hub import InferenceClient
+
+class HFWeathermanRemote:
+    """
+    Remote (hosted) Hugging Face assistant using the Inference API.
+    Reads HF_API_TOKEN or HUGGINGFACEHUB_API_TOKEN from the environment.
+    Falls back to a generic message if no token is set (still non-crashing).
+    """
+
+    def __init__(self, model_name: str = None, api_token: str = None, max_new_tokens: int = 220):
+        self.model_name = model_name or os.environ.get("HF_ASSISTANT_MODEL", "google/flan-t5-base")
+        # Accept either env name
+        token = api_token or os.environ.get("HF_API_TOKEN") or os.environ.get("HUGGINGFACEHUB_API_TOKEN")
+        self._has_token = bool(token)
+        if not self._has_token:
+            print("[HFWeatherAssistant] HF_API_TOKEN not set; responses will use fallback text.")
+        self.client = InferenceClient(model=self.model_name, token=token if token else None)
+        self.max_new_tokens = max_new_tokens
+
+    def _gen_sync(self, prompt: str) -> str:
+        if not self._has_token:
+            # still return something meaningful in dev
+            return ("Automated analysis is available. For best results, set HF_API_TOKEN "
+                    "or HUGGINGFACEHUB_API_TOKEN in your environment to enable rich summaries.")
+        try:
+            out = self.client.text_generation(
+                prompt.strip(),
+                max_new_tokens=self.max_new_tokens,
+                temperature=0.3,
+                top_p=0.9,
+                repetition_penalty=1.05,
+                do_sample=False,
+            )
+            return (out or "").strip()
+        except Exception as e:
+            return f"(HF assistant temporary error: {e})"
+
+    async def summarize_alert(self, prompt: str) -> str:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._gen_sync, prompt)
+
+    async def answer_question(self, question: str, context: str | None = None) -> str:
+        q = f"Question: {question}\n"
+        if context:
+            q += f"Context: {context}\n"
+        q += "Answer clearly and succinctly for a weather app user."
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._gen_sync, q)
+
+# --------------------------- INFERENCE ENGINE -----------------------------
+
+import torch
+
+try:
+    from storm_monitor import InferenceEngine, AutomatedStormMonitor
+except Exception as _imp_err:
+    logger.warning(f"Could not import storm_monitor classes: {_imp_err}")
+    InferenceEngine = None
+    AutomatedStormMonitor = None
+
+# Try to resolve weights (local path OR Hugging Face repo)
+def _resolve_weights_path() -> str:
+    # 1) If explicit local path provided, use it
+    p = os.environ.get("TORNADO_WEIGHTS", "")
+    if p and os.path.exists(p):
+        return p
+
+    # 2) If HF repo given, download common filenames
+    repo = os.environ.get("TORNADO_WEIGHTS_HF_REPO", "Wonder-Griffin/TorNET-Oracle")
+    fname = os.environ.get("TORNADO_WEIGHTS_FILE", "")
+    try:
+        from huggingface_hub import hf_hub_download, list_repo_files
+        if not fname:
+            # Try to guess a filename
+            files = list_repo_files(repo)
+            # common candidates in priority order
+            candidates = [
+                "model.safetensors",
+                "pytorch_model.bin",
+                "tornado_super_predictor.pt",
+            ]
+            for c in candidates:
+                if c in files:
+                    fname = c
+                    break
+            if not fname and files:
+                # fall back to first binary-looking file
+                for f in files:
+                    if f.endswith((".bin", ".pt", ".safetensors")):
+                        fname = f
+                        break
+        if fname:
+            return hf_hub_download(repo_id=repo, filename=fname)
+    except Exception as e:
+        logger.warning(f"Could not download weights from HF ({repo}): {e}")
+
+    # 3) Nothing found
+    return ""
+
+weather_ai = HFWeathermanRemote()
+
+tornado_ie = None
+try:
+    if InferenceEngine:
+        # Create the tornado prediction model
+        model = TornadoSuperPredictor(in_channels=int(os.environ.get("TORNADO_IN_CHANNELS", "18")))
+        # Wrap it with InferenceEngine
+        tornado_ie = InferenceEngine(model=model)
+except Exception as _ie_err:
+    logger.warning(f"Failed to initialize InferenceEngine: {_ie_err}")
+
+# ------------------------------ STARTUP -----------------------------------
+
+@app.on_event("startup")
+async def startup_event():
+    global storm_monitor
+    await init_radar_stations()
+
+    # Optional: enable automated storm monitoring if desired
+    # Example: set env STORM_MONITOR_AUTO=1 to run it
+    auto = os.environ.get("STORM_MONITOR_AUTO", "0") == "1"
+    if auto and tornado_ie and AutomatedStormMonitor:
+        try:
+            # The assistant for monitor can reuse the remote one
+            storm_monitor = AutomatedStormMonitor(
+                db_connection=db,
+                inference_engine=tornado_ie,
+                assistant=weather_ai,              # use HF remote assistant
+                in_channels=tornado_ie.model.radar_extractor.conv1.in_channels,
+                scan_interval_sec=int(os.environ.get("SCAN_INTERVAL", "300")),
+                priority_interval_sec=int(os.environ.get("PRIORITY_INTERVAL", "120")),
+            )
+            asyncio.create_task(storm_monitor.start_monitoring())
+            logger.info("🌪️ Automated storm monitoring started")
+        except Exception as e:
+            logger.exception(f"Failed to start monitor: {e}")
+            storm_monitor = None
+    else:
+        logger.info("🌪️ Storm Oracle startup complete - Manual mode (monitor disabled)")
+
+
+# ------------------------------- ROUTES -----------------------------------
+
+@api_router.get("/")
+async def root():
+    return {"message": "Storm Oracle Weather Radar API - Tornado Prediction System"}
+
+
+@api_router.get("/radar-stations", response_model=List[RadarStation])
+async def get_radar_stations(state: Optional[str] = None):
+    """Get all radar stations, optionally filtered by state"""
+    query = {}
+    if state:
+        query["state"] = state.upper()
+    
+    stations = await db.radar_stations.find(query).to_list(1000)
+    for station in stations:
+        station.pop("_id", None)
+    return [RadarStation(**station) for station in stations]
+
+
+@api_router.get("/radar-stations/{station_id}", response_model=RadarStation)
+async def get_radar_station(station_id: str):
+    """Get specific radar station details"""
+    station = await db.radar_stations.find_one({"station_id": station_id})
+    if not station:
+        raise HTTPException(status_code=404, detail="Radar station not found")
+    station.pop("_id", None)
+    return RadarStation(**station)
+
+
+from radar_pyart import radar_processor
+import time
+
+@api_router.get("/radar-image/national")
+async def get_national_radar_image(data_type: str = "reflectivity", frame_time: Optional[float] = None):
+    """Get national radar composite using PyART with smooth temporal evolution"""
+    try:
+        if frame_time is None:
+            frame_time = time.time()
+        image_data = await radar_processor.get_national_radar_composite(data_type, frame_time)
+        from fastapi.responses import Response
+        return Response(
+            content=image_data,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "max-age=30",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET",
+                "Access-Control-Allow-Headers": "*"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error serving national radar image: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate national radar image")
+
+
+@api_router.get("/radar-image/{station_id}")
+async def get_radar_image(station_id: str, data_type: str = "reflectivity"):
+    """Get radar image using PyART (station-specific or national)"""
+    try:
+        if station_id.upper() == "NATIONAL":
+            image_data = await radar_processor.get_national_radar_composite(data_type)
+        else:
+            image_data = await radar_processor.get_station_radar(station_id, data_type)
+        from fastapi.responses import Response
+        return Response(
+            content=image_data,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "max-age=300",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET",
+                "Access-Control-Allow-Headers": "*"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error serving radar image for {station_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate radar image")
+
+
+@api_router.get("/radar-data/{station_id}")
+async def get_radar_data(station_id: str, data_type: str = "reflectivity", timestamp: Optional[int] = None):
+    """Get radar data with PyART image proxy URL (supports national and individual stations)"""
+    try:
+        backend_url = os.environ.get('BACKEND_URL', 'https://storm-tracker-9.preview.emergentagent.com')
+        if station_id.upper() == "NATIONAL":
+            radar_url = f"{backend_url}/api/radar-image/national?data_type={data_type}"
+            return {
+                "radar_url": radar_url,
+                "station_id": "NATIONAL",
+                "data_type": data_type,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "coordinates": {"lat": 39.0, "lon": -98.0},
+                "api_source": "PyART_National",
+                "refresh_interval": 300,
+                "data_quality": "live",
+                "coverage_area": {
+                    "radius_km": 3000,
+                    "center": {"lat": 39.0, "lon": -98.0}
+                }
+            }
+        else:
+            station = await db.radar_stations.find_one({"station_id": station_id})
+            if not station:
+                raise HTTPException(status_code=404, detail="Station not found")
+            lat, lng = station["latitude"], station["longitude"]
+            radar_url = f"{backend_url}/api/radar-image/{station_id}?data_type={data_type}"
+            radar_data = RadarData(
+                station_id=station_id,
+                data_type=data_type,
+                reflectivity_url=radar_url if 'reflectivity' in data_type else None,
+                velocity_url=radar_url if 'velocity' in data_type else None,
+                timestamp=datetime.now(timezone.utc)
+            )
+            radar_dict = radar_data.dict()
+            if radar_dict.get('timestamp'):
+                radar_dict['timestamp'] = radar_dict['timestamp'].isoformat()
+            await db.radar_data.insert_one(radar_dict)
+            return {
+                "radar_url": radar_url,
+                "station_id": station_id,
+                "data_type": data_type,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "coordinates": {"lat": lat, "lon": lng},
+                "api_source": "PyART_Station",
+                "refresh_interval": 300,
+                "data_quality": "live",
+                "coverage_area": {
+                    "radius_km": 230,
+                    "center": {"lat": lat, "lon": lng}
+                }
+            }
+    except Exception as e:
+        logger.error(f"Error fetching radar data for {station_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get radar data: {str(e)}")
+
+
+# ----------------------- ADVANCED ML ANALYSIS -----------------------------
+
+@api_router.post("/ml-tornado-analysis")
+async def ml_enhanced_tornado_analysis(station_id: str, data_type: str = "reflectivity"):
+    """🌪️ ADVANCED ML-POWERED TORNADO ANALYSIS (HF assistant for narrative)"""
+    try:
+        logger.info(f"🚀 Starting advanced ML tornado analysis for station {station_id}")
+        station = await db.radar_stations.find_one({"station_id": station_id})
+        if not station:
+            raise HTTPException(status_code=404, detail="Station not found")
+        station.pop("_id", None)
+
+        station_location = {
+            'latitude': station['latitude'],
+            'longitude': station['longitude'],
+            'elevation': station.get('elevation', 0.0),
+        }
+
+        ml_data = await ml_data_pipeline.prepare_prediction_data(station_id, station_location)
+
+        if tornado_ie is None:
+            raise HTTPException(status_code=500, detail="InferenceEngine not initialized")
+
+        # Radar tensor shape: (C,H,W) or (1,C,H,W)
+        radar_tensor = ml_data['radar_sequence']
+        if not isinstance(radar_tensor, torch.Tensor):
+            radar_tensor = torch.as_tensor(radar_tensor).float()
+
+        # Ensure channel count equals model expectation (truncate or tile)
+        expect_c = tornado_ie.model.radar_extractor.conv1.in_channels
+        if radar_tensor.ndim == 3:
+            C = radar_tensor.shape[0]
+            if C > expect_c:
+                radar_tensor = radar_tensor[:expect_c, :, :]
+            elif C < expect_c:
+                reps = (expect_c + C - 1) // C
+                radar_tensor = radar_tensor.repeat(reps, 1, 1)[:expect_c, :, :]
+
+        pred = tornado_ie.predict_one(radar_tensor, ml_data.get('atmospheric_data'))
+        # Compose assistant narrative
+        ef_probs = ", ".join([f"{k}:{v:.0%}" for k, v in pred["ef_scale_prediction"].items()])
+        prompt = (
+            f"Automated tornado risk analysis for {station['name']} ({station_id}).\n\n"
+            f"ML estimates:\n"
+            f"- Tornado Probability: {pred['tornado_probability']:.1%}\n"
+            f"- Most Likely EF: EF{pred['most_likely_ef_scale']}\n"
+            f"- EF Probabilities: {ef_probs}\n"
+            f"- Confidence: {pred['uncertainty_scores']['confidence']:.1%}\n"
+            f"- Key radar signatures (0-1): hook={pred['radar_signatures']['hook_echo_strength']:.2f}, "
+            f"meso={pred['radar_signatures']['mesocyclone_strength']:.2f}, "
+            f"vel_couplet={pred['radar_signatures']['velocity_couplet_strength']:.2f}\n"
+            f"- CAPE/shear/instability: {pred['atmospheric_indicators']['cape_score']:.0f}, "
+            f"{pred['atmospheric_indicators']['shear_magnitude']:.1f}, "
+            f"{pred['atmospheric_indicators']['instability_index']:.1f}\n\n"
+            "Write a concise, plain-language alert (<= 150 words) with:\n"
+            "1) Immediate threat assessment\n2) Recommended actions\n3) Brief reasoning"
+        )
+        ai_analysis = await weather_ai.summarize_alert(prompt)
+
+        enhanced_alert = TornadoAlert(
+            station_id=station_id,
+            alert_type="ML_ENHANCED_ANALYSIS",
+            severity=min(5, max(1, int(pred["tornado_probability"] * 5) + 1)),
+            predicted_location={
+                "lat": pred["touchdown_location"]["latitude"],
+                "lng": pred["touchdown_location"]["longitude"],
+            },
+            predicted_path=[
+                {"lat": p["latitude"], "lng": p["longitude"]}
+                for p in pred["path_trajectory"][:5]
+            ],
+            confidence=pred["confidence_score"] * 100,
+            message=f"🌪️ ADVANCED ML TORNADO ANALYSIS\n\n{ai_analysis}",
+            timestamp=datetime.now(timezone.utc),
+            estimated_touchdown_time=(
+                datetime.now(timezone.utc) + timedelta(minutes=pred["timing_predictions"].get("time_to_touchdown_minutes", 60))
+                if pred["timing_predictions"].get("time_to_touchdown_minutes", 0) > 0 else None
+            ),
+        )
+
+        alert_dict = enhanced_alert.dict()
+        if alert_dict.get('timestamp'):
+            alert_dict['timestamp'] = alert_dict['timestamp'].isoformat()
+        if alert_dict.get('estimated_touchdown_time'):
+            alert_dict['estimated_touchdown_time'] = alert_dict['estimated_touchdown_time'].isoformat()
+        await db.tornado_alerts.insert_one(alert_dict)
+
+        logger.info(f"✅ Advanced ML tornado analysis completed for {station_id}")
+
+        return {
+            "🌪️ ADVANCED_ML_PREDICTION": {
+                "tornado_probability": f"{pred['tornado_probability']:.1%}",
+                "ef_scale_prediction": pred["ef_scale_prediction"],
+                "most_likely_ef_scale": f"EF{pred['most_likely_ef_scale']}",
+                "touchdown_location": pred["touchdown_location"],
+                "tornado_path": pred["path_trajectory"],
+                "timing_predictions": pred["timing_predictions"],
+                "alert_level": pred["alert_level"],
+            },
+            "🔍 UNCERTAINTY_ANALYSIS": pred["uncertainty_scores"],
+            "📊 ML_EXPLANATIONS": {
+                "radar_signatures": pred["radar_signatures"],
+                "atmospheric_indicators": pred["atmospheric_indicators"],
+            },
+            "🤖 AI_CONTEXTUAL_ANALYSIS": ai_analysis,
+            "📍 STATION_INFO": station,
+            "⚡ SYSTEM_METRICS": {
+                "ml_model_version": "TornadoSuperPredictor v1.0",
+                "data_quality_score": ml_data.get('data_quality', 1.0),
+                "processing_time": "< 1 second",
+                "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
+                "assistant_model": os.environ.get("HF_ASSISTANT_MODEL", "google/flan-t5-base"),
+                "real_time_processing": True,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"💥 Error in ML tornado analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"ML Analysis failed: {str(e)}")
+
+
+@api_router.post("/tornado-analysis")
+async def analyze_tornado_risk(station_id: str, data_type: str = "reflectivity"):
+    """🌪️ HYBRID AI TORNADO ANALYSIS (HF assistant + basic context)"""
+    try:
+        radar_info = await get_radar_data(station_id, data_type)
+        station = await db.radar_stations.find_one({"station_id": station_id})
+        if not station:
+            raise HTTPException(status_code=404, detail="Station not found")
+        station.pop("_id", None)
+
+        analysis_prompt = f"""
+Analyze current conditions for radar station {station_id} ({station['name']}) at {station['latitude']:.3f}, {station['longitude']:.3f}.
+Radar data type: {data_type}
+Time (UTC): {datetime.now(timezone.utc).isoformat()}
+
+Give:
+1) Tornado formation likelihood (0–100%)
+2) Potential touchdown area (≤50 miles)
+3) Storm motion (dir/speed)
+4) Safety actions
+
+Use radar signatures (hook echo, velocity couplet, mesocyclone, SRV) as appropriate.
+Stay concise and plain-language.
+"""
+        ai_analysis = await weather_ai.summarize_alert(analysis_prompt)
+
+        alert = TornadoAlert(
+            station_id=station_id,
+            alert_type="HYBRID_AI_ANALYSIS",
+            severity=2,
+            predicted_location={"lat": station['latitude'], "lng": station['longitude']},
+            predicted_path=[{"lat": station['latitude'], "lng": station['longitude']}],
+            confidence=75.0,
+            message=ai_analysis,
+            timestamp=datetime.now(timezone.utc),
+            estimated_touchdown_time=None
+        )
+
+        alert_dict = alert.dict()
+        if alert_dict.get('timestamp'):
+            alert_dict['timestamp'] = alert_dict['timestamp'].isoformat()
+        if alert_dict.get('estimated_touchdown_time'):
+            alert_dict['estimated_touchdown_time'] = alert_dict['estimated_touchdown_time'].isoformat()
+        await db.tornado_alerts.insert_one(alert_dict)
+
+        return {
+            "alert": alert.dict(),
+            "ai_analysis": ai_analysis,
+            "station_info": station,
+            "analysis_type": "HF Remote Assistant",
+            "upgrade_available": "🚀 Try /ml-tornado-analysis for ADVANCED ML PREDICTIONS!"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in tornado analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@api_router.get("/tornado-alerts", response_model=List[TornadoAlert])
+async def get_tornado_alerts(limit: int = 50):
+    """Get recent tornado alerts"""
+    alerts = await db.tornado_alerts.find().sort("timestamp", -1).limit(limit).to_list(limit)
+    for alert in alerts:
+        alert.pop("_id", None)
+    return [TornadoAlert(**alert) for alert in alerts]
+
+
+@api_router.post("/chat")
+async def chat_with_ai(message: str, user_id: str = "user", context: Optional[Dict[str, Any]] = None):
+    """Chat with AI about weather conditions (HF model)"""
+    try:
+        context_text = json.dumps(context) if context else "General weather inquiry"
+        response = await weather_ai.answer_question(message, context_text)
+
+        chat_record = ChatMessage(
+            user_id=user_id,
+            message=message,
+            response=response,
+            context=context
+        )
+        await db.chat_messages.insert_one(chat_record.dict())
+
+        return {"response": response, "timestamp": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        logger.error(f"Error in chat: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+@api_router.get("/active-storms")
+async def get_active_storms():
+    """🌪️ Get all currently active storm cells with tornado predictions"""
+    try:
+        if storm_monitor:
+            active_storms = storm_monitor.get_active_storms()
+            monitoring_status = storm_monitor.get_monitoring_status()
+            return {
+                "active_storms": active_storms,
+                "monitoring_status": monitoring_status,
+                "total_active_storms": len(active_storms),
+                "high_threat_count": len([s for s in active_storms if s['tornadoProbability'] > 50]),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        else:
+            return {
+                "active_storms": [],
+                "monitoring_status": {"monitoring_active": False},
+                "message": "Storm monitoring not initialized"
+            }
+    except Exception as e:
+        logger.error(f"Error getting active storms: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get active storms: {str(e)}")
+
+
+@api_router.get("/radar-frames/{station_id}")
+async def get_radar_frames(station_id: str, frames: int = 100):
+    """📡 Get radar animation frames for a specific station"""
+    try:
+        frames = max(50, min(250, frames))
+        station = await db.radar_stations.find_one({"station_id": station_id})
+        if not station:
+            raise HTTPException(status_code=404, detail="Station not found")
+        radar_frames = []
+        base_time = datetime.now(timezone.utc)
+        for i in range(frames):
+            frame_time = base_time - timedelta(minutes=i * 10)
+            timestamp = int(frame_time.timestamp())
+            lat, lng = station['latitude'], station['longitude']
+            zoom = 8
+            x_tile = int((lng + 180.0) / 360.0 * (1 << zoom))
+            y_tile = int((1.0 - math.log(math.tan(lat * math.pi / 180.0) + 1.0 / math.cos(lat * math.pi / 180.0)) / math.pi) / 2.0 * (1 << zoom))
+            radar_frames.append({
+                "timestamp": timestamp * 1000,
+                "frameIndex": frames - i - 1,
+                "imageUrl": f"https://tilecache.rainviewer.com/v2/radar/{timestamp}/256/{zoom}/{x_tile}/{y_tile}/2/1_1.png",
+                "bounds": {"north": lat + 2, "south": lat - 2, "east": lng + 2, "west": lng - 2}
+            })
+        return {
+            "station_id": station_id,
+            "station_name": station["name"],
+            "frames": radar_frames,
+            "total_frames": frames,
+            "time_range_minutes": frames * 10,
+            "generated_at": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting radar frames: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get radar frames: {str(e)}")
+
+
+@api_router.get("/radar-frames/national")
+async def get_national_radar_frames(frames: int = 100):
+    """🇺🇸 Get national radar animation frames"""
+    try:
+        frames = max(50, min(250, frames))
+        radar_frames = []
+        base_time = datetime.now(timezone.utc)
+        for i in range(frames):
+            frame_time = base_time - timedelta(minutes=i * 10)
+            timestamp = int(frame_time.timestamp())
+            radar_frames.append({
+                "timestamp": timestamp * 1000,
+                "frameIndex": frames - i - 1,
+                "imageUrl": f"https://tilecache.rainviewer.com/v2/radar/{timestamp}/256/4/8/5/2/1_1.png",
+                "bounds": {"north": 50, "south": 25, "east": -65, "west": -125}
+            })
+        return {
+            "region": "Continental United States",
+            "frames": radar_frames,
+            "total_frames": frames,
+            "time_range_minutes": frames * 10,
+            "generated_at": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting national radar frames: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get national radar frames: {str(e)}")
+
+
+@api_router.get("/monitoring-status")
+async def get_monitoring_status():
+    """📊 Get automated storm monitoring system status"""
+    try:
+        if storm_monitor:
+            status = storm_monitor.get_monitoring_status()
+            active_storms = storm_monitor.get_active_storms()
+            return {
+                "system_status": status,
+                "active_storm_summary": {
+                    "total_storms": len(active_storms),
+                    "high_threat": len([s for s in active_storms if s['tornadoProbability'] > 70]),
+                    "moderate_threat": len([s for s in active_storms if 40 <= s['tornadoProbability'] <= 70]),
+                    "low_threat": len([s for s in active_storms if 20 <= s['tornadoProbability'] < 40])
+                },
+                "system_info": {
+                    "ml_model_version": "TornadoSuperPredictor v1.0",
+                    "monitoring_stations": 139,
+                    "ai_integration": os.environ.get("HF_ASSISTANT_MODEL", "google/flan-t5-base"),
+                    "real_time_processing": True
+                }
+            }
+        else:
+            return {
+                "system_status": {"monitoring_active": False, "error": "Storm monitor not initialized"},
+                "active_storm_summary": {"total_storms": 0},
+                "system_info": {"status": "offline"}
+            }
+    except Exception as e:
+        logger.error(f"Error getting monitoring status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get monitoring status: {str(e)}")
+
+
+@api_router.get("/subscription/{user_id}")
+async def get_user_subscription(user_id: str):
+    """Get user subscription status"""
+    subscription = await db.user_subscriptions.find_one({"user_id": user_id})
+    if not subscription:
+        free_subscription = UserSubscription(
+            user_id=user_id,
+            tier="free",
+            features=["basic_radar", "ai_alerts"]
+        )
+        subscription_dict = free_subscription.dict()
+        await db.user_subscriptions.insert_one(subscription_dict)
+        return subscription_dict
+    subscription.pop("_id", None)
+    return subscription
+
+
+@api_router.post("/subscription/{user_id}/upgrade")
+async def upgrade_subscription(user_id: str):
+    """Upgrade user to premium subscription"""
+    premium_features = [
+        "basic_radar", "ai_alerts", "real_time_tracking",
+        "advanced_radar", "ai_chatbot", "detailed_predictions",
+        "historical_data", "tornado_paths"
+    ]
+    now = datetime.now(timezone.utc)
+    # roll to first day of NEXT month robustly
+    next_month = 1 if now.month == 12 else now.month + 1
+    next_year = now.year + 1 if now.month == 12 else now.year
+    expires_at = now.replace(year=next_year, month=next_month, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    await db.user_subscriptions.update_one(
+        {"user_id": user_id},
+        {
+            "$set": {
+                "tier": "premium",
+                "features": premium_features,
+                "expires_at": expires_at  # Mongo stores datetime natively
+            }
+        },
+        upsert=True
+    )
+    return {"message": "Subscription upgraded to premium", "features": premium_features, "tier": "premium"}
+
+
+# -------------------------- APP / MIDDLEWARE ------------------------------
+
+# Include the router in the main app
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    client.close()
