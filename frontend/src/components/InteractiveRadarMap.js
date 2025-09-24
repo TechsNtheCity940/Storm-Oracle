@@ -1459,6 +1459,14 @@ const InteractiveRadarMap = ({
           onStationClick={onStationSelect}
           selectedStation={selectedStation}
         />
+        
+        <WindAnimation 
+          map={mapRef.current}
+          windData={windData}
+          showWindAnimation={showWindAnimation}
+          stormCells={stormCells}
+          selectedStation={selectedStation}
+        />
       </MapContainer>
 
       {/* Enhanced CSS for radar visualization, scrolling, and fullscreen */}
