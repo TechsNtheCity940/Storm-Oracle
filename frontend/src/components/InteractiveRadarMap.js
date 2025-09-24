@@ -1630,13 +1630,21 @@ const InteractiveRadarMap = ({
           transform: scale(1.1);
         }
         
-        /* Smooth radar transition animations */
-        .smooth-transition {
-          transition: opacity 0.3s ease-in-out !important;
+        /* Ultra-smooth radar transition animations */
+        .radar-overlay-smooth {
+          transition: opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1) !important;
         }
         
-        .preload-layer {
-          visibility: hidden;
+        .leaflet-layer {
+          transition: opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1) !important;
+        }
+        
+        .leaflet-tile {
+          transition: opacity 0.2s ease-out !important;
+        }
+        
+        .leaflet-fade-anim .leaflet-tile {
+          transition: opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1) !important;
         }
 
         /* Lightning animation */
