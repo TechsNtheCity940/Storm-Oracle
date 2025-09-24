@@ -857,7 +857,18 @@ const InteractiveRadarMap = ({
           };
         });
         
-        console.log(`Loaded ${radarFrames.length} radar frames with 2-minute intervals for smooth animation`);
+        console.log(`Loaded ${radarFrames.length} radar frames with smooth crossfade transitions`);
+        
+        // Preload tiles for smoother animation
+        radarFrames.forEach((frame, index) => {
+          if (frame.rainViewerPath) {
+            const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${frame.rainViewerPath}/512/{z}/{x}/{y}/2/1_1.png`;
+            // Preload key tiles for the current zoom level
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = tileUrl.replace('{z}', '4').replace('{x}', '8').replace('{y}', '5'); // Center US tile
+          }
+        });
         
         console.log("Processed radar frames:", radarFrames.length);
         setRadarFrames(radarFrames);
