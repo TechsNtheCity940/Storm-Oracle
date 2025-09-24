@@ -775,35 +775,42 @@ const InteractiveRadarMap = ({
         )}
       </Card>
 
-      {/* Storm Alerts Panel */}
+      {/* Modern Storm Alerts Panel */}
       {stormCells.length > 0 && (
-        <Card className="absolute top-4 right-4 z-[1000] bg-slate-800/95 border-slate-700 backdrop-blur-sm max-w-sm">
+        <Card className="absolute top-4 right-4 z-[1000] bg-white/90 border-red-100 backdrop-blur-md shadow-xl rounded-2xl max-w-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-white text-sm flex items-center">
-              <AlertTriangle className="h-4 w-4 mr-2 text-red-500" />
+            <CardTitle className="text-slate-700 text-sm flex items-center font-semibold">
+              <div className="p-1.5 bg-gradient-to-br from-red-100 to-rose-100 rounded-lg mr-2">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+              </div>
               Active Storm Alerts ({stormCells.length})
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 max-h-64 overflow-y-auto">
+          <CardContent className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
             {stormCells.map((storm, index) => (
               <div
                 key={index}
                 onClick={() => jumpToStorm(storm)}
-                className="bg-slate-700 p-3 rounded cursor-pointer hover:bg-slate-600 transition-colors"
+                className="bg-gradient-to-r from-red-50 to-rose-50 border border-red-100 p-4 rounded-2xl cursor-pointer hover:from-red-100 hover:to-rose-100 hover:border-red-200 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
               >
-                <div className="flex justify-between items-start mb-1">
-                  <span className="text-white font-medium text-sm">{storm.stationName}</span>
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-slate-700 font-bold text-sm">{storm.stationName}</span>
                   <Badge 
-                    variant={storm.tornadoProbability > 70 ? "destructive" : storm.tornadoProbability > 40 ? "default" : "secondary"}
-                    className="text-xs"
+                    className={`text-xs rounded-full px-2 py-1 font-semibold ${
+                      storm.tornadoProbability > 70 
+                        ? "bg-gradient-to-r from-red-500 to-rose-600 text-white" 
+                        : storm.tornadoProbability > 40 
+                        ? "bg-gradient-to-r from-orange-400 to-amber-500 text-white" 
+                        : "bg-gradient-to-r from-blue-400 to-sky-500 text-white"
+                    }`}
                   >
                     {storm.tornadoProbability}%
                   </Badge>
                 </div>
-                <div className="text-slate-300 text-xs space-y-1">
-                  <div>EF Scale: {storm.predictedEFScale}</div>
-                  <div>Alert: {storm.alertLevel}</div>
-                  <div>Touchdown: {storm.touchdownTime || 'Estimating...'}</div>
+                <div className="text-slate-600 text-xs space-y-1 font-medium">
+                  <div>⚡ EF Scale: {storm.predictedEFScale}</div>
+                  <div>🚨 Alert: {storm.alertLevel}</div>
+                  <div>📍 Touchdown: {storm.touchdownTime || 'Estimating...'}</div>
                 </div>
               </div>
             ))}
