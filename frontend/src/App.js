@@ -31,6 +31,8 @@ function App() {
   const [monitoringStatus, setMonitoringStatus] = useState({});
   const [showRadarMap, setShowRadarMap] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResults, setAnalysisResults] = useState(null);
+  const [lastAnalysisTime, setLastAnalysisTime] = useState(null);
 
   useEffect(() => {
     loadRadarStations();
