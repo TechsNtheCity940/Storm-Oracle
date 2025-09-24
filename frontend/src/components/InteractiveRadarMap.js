@@ -840,8 +840,8 @@ const InteractiveRadarMap = ({
         {!controlsCollapsed && (
           <CardContent className="space-y-5 overflow-y-auto overflow-x-hidden max-h-full pr-2 custom-scrollbar">
             <div className="space-y-5">
-              {/* Data Type Selection */}
-              <div className="space-y-2">
+              {/* Data Type Selection with Definition */}
+              <div className="space-y-3">
                 <label className="text-xs text-slate-600 font-semibold uppercase tracking-wide">Radar Data Type</label>
                 <Select value={dataType} onValueChange={handleDataTypeChange}>
                   <SelectTrigger className="bg-white border-blue-200 text-slate-700 rounded-xl hover:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all">
@@ -855,6 +855,41 @@ const InteractiveRadarMap = ({
                     ))}
                   </SelectContent>
                 </Select>
+                
+                {/* Radar Data Definition */}
+                {RADAR_DATA_TYPES[dataType] && (
+                  <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 p-4 rounded-2xl">
+                    <h4 className="font-bold text-slate-700 text-sm mb-2 flex items-center">
+                      📊 {RADAR_DATA_TYPES[dataType].name}
+                    </h4>
+                    <div className="space-y-2 text-xs">
+                      <p className="font-semibold text-indigo-700">
+                        {RADAR_DATA_TYPES[dataType].definition}
+                      </p>
+                      <p className="text-slate-600 leading-relaxed">
+                        {RADAR_DATA_TYPES[dataType].description}
+                      </p>
+                      <div className="bg-white/80 p-2 rounded-lg">
+                        <p className="font-medium text-slate-700 mb-1">Units: {RADAR_DATA_TYPES[dataType].units}</p>
+                        <div className="space-y-1">
+                          {Object.entries(RADAR_DATA_TYPES[dataType].interpretation).map(([color, meaning]) => (
+                            <div key={color} className="flex items-center text-xs">
+                              <div className={`w-3 h-3 rounded mr-2 ${
+                                color === 'green' ? 'bg-green-500' :
+                                color === 'yellow' ? 'bg-yellow-500' :
+                                color === 'red' ? 'bg-red-500' :
+                                color === 'purple' ? 'bg-purple-500' :
+                                color === 'blue' ? 'bg-blue-500' :
+                                'bg-gray-400'
+                              }`}></div>
+                              <span className="text-slate-600">{meaning}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Current Selection Info */}
