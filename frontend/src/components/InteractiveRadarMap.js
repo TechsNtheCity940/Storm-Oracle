@@ -663,7 +663,7 @@ const InteractiveRadarMap = ({
                 <label className="text-xs text-slate-600 font-semibold uppercase tracking-wide">
                   Frames to Load: 
                   <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg ml-2 normal-case">{frameCount}</span>
-                  <span className="text-slate-500 ml-1 normal-case">({(frameCount * 10)} min)</span>
+                  <span className="text-slate-500 ml-1 normal-case">({(frameCount * 2)} min)</span>
                 </label>
                 <Slider
                   value={[frameCount]}
