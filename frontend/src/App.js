@@ -306,12 +306,12 @@ function App() {
                   </SelectContent>
                 </Select>
 
-                {selectedStation && (
+                {selectedStation && selectedStation.name && (
                   <div className="p-5 bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100 rounded-2xl">
                     <h3 className="text-slate-700 font-bold text-lg">{selectedStation.name}</h3>
                     <p className="text-blue-600 text-sm font-semibold">{selectedStation.station_id}</p>
                     <p className="text-slate-500 text-sm mt-2">
-                      📍 {selectedStation.latitude.toFixed(4)}°, {selectedStation.longitude.toFixed(4)}°
+                      📍 {selectedStation.latitude?.toFixed(4)}°, {selectedStation.longitude?.toFixed(4)}°
                     </p>
                     <p className="text-slate-500 text-sm">⛰️ Elevation: {selectedStation.elevation}ft</p>
                   </div>
