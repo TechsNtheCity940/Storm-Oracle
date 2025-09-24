@@ -296,6 +296,12 @@ class StormOracleAPITester:
         # Test PREMIUM ML tornado analysis
         self.test_ml_tornado_analysis(test_station)
         
+        # Test radar data variations
+        self.test_radar_data_variations(test_station)
+        
+        # Test state-filtered stations
+        self.test_state_filtered_stations()
+        
         # Print final results
         self.print_summary()
 
