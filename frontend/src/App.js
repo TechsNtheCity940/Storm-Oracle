@@ -45,11 +45,20 @@ function App() {
     const stormInterval = setInterval(loadActiveStorms, 120000);
     const statusInterval = setInterval(loadMonitoringStatus, 60000);
     
+    // Auto-analysis for selected station (if monitoring is active)
+    const autoAnalysisInterval = setInterval(() => {
+      if (selectedStation && monitoringStatus.system_status?.monitoring_active && !analyzing) {
+        console.log("🔄 Running automated analysis for", selectedStation.name);
+        analyzeForTornadoes();
+      }
+    }, 120000); // Every 2 minutes
+
     return () => {
       clearInterval(stormInterval);
       clearInterval(statusInterval);
+      clearInterval(autoAnalysisInterval);
     };
-  }, []);
+  }, [selectedStation, monitoringStatus.system_status?.monitoring_active, analyzing]);
 
   const loadActiveStorms = async () => {
     try {
