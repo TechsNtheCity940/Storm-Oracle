@@ -269,29 +269,31 @@ function App() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="container mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           
           {/* Radar Station Selection */}
-          <div className="lg:col-span-1 space-y-6">
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <MapPin className="h-5 w-5 mr-2" />
+          <div className="lg:col-span-1 space-y-8">
+            <Card className="bg-white/80 backdrop-blur-sm border border-blue-100 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-slate-700 flex items-center text-lg font-semibold">
+                  <div className="p-2 bg-gradient-to-br from-blue-100 to-sky-100 rounded-xl mr-3">
+                    <MapPin className="h-5 w-5 text-blue-600" />
+                  </div>
                   Radar Stations
                 </CardTitle>
-                <CardDescription className="text-slate-400">
+                <CardDescription className="text-slate-500 font-medium">
                   Select a NEXRAD station to monitor
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-5">
                 <Select onValueChange={selectRadarStation} disabled={loading}>
-                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                  <SelectTrigger className="bg-white border-blue-200 text-slate-700 rounded-xl hover:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all">
                     <SelectValue placeholder="Choose radar station..." />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-600">
+                  <SelectContent className="bg-white border-blue-100 rounded-xl shadow-xl">
                     {radarStations.map((station) => (
-                      <SelectItem key={station.station_id} value={station.station_id} className="text-white hover:bg-slate-700">
+                      <SelectItem key={station.station_id} value={station.station_id} className="text-slate-700 hover:bg-blue-50 rounded-lg">
                         {station.station_id} - {station.name}, {station.state}
                       </SelectItem>
                     ))}
@@ -299,41 +301,49 @@ function App() {
                 </Select>
 
                 {selectedStation && (
-                  <div className="p-4 bg-slate-700 rounded-lg">
-                    <h3 className="text-white font-semibold">{selectedStation.name}</h3>
-                    <p className="text-slate-300 text-sm">{selectedStation.station_id}</p>
-                    <p className="text-slate-400 text-xs">
-                      {selectedStation.latitude.toFixed(4)}°, {selectedStation.longitude.toFixed(4)}°
+                  <div className="p-5 bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100 rounded-2xl">
+                    <h3 className="text-slate-700 font-bold text-lg">{selectedStation.name}</h3>
+                    <p className="text-blue-600 text-sm font-semibold">{selectedStation.station_id}</p>
+                    <p className="text-slate-500 text-sm mt-2">
+                      📍 {selectedStation.latitude.toFixed(4)}°, {selectedStation.longitude.toFixed(4)}°
                     </p>
-                    <p className="text-slate-400 text-xs">Elevation: {selectedStation.elevation}ft</p>
+                    <p className="text-slate-500 text-sm">⛰️ Elevation: {selectedStation.elevation}ft</p>
                   </div>
                 )}
               </CardContent>
             </Card>
 
             {/* Tornado Alerts */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center">
-                  <AlertTriangle className="h-5 w-5 mr-2 text-red-500" />
+            <Card className="bg-white/80 backdrop-blur-sm border border-red-100 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-slate-700 flex items-center text-lg font-semibold">
+                  <div className="p-2 bg-gradient-to-br from-red-100 to-orange-100 rounded-xl mr-3">
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                  </div>
                   Recent Alerts
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
+                <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar">
                   {tornadoAlerts.slice(0, 5).map((alert) => (
-                    <Alert key={alert.id} className="bg-slate-700 border-slate-600">
+                    <Alert key={alert.id} className="bg-gradient-to-r from-red-50 to-orange-50 border-red-200 rounded-xl">
                       <AlertTriangle className={`h-4 w-4 ${getStormIntensityColor(alert.severity)}`} />
-                      <AlertTitle className="text-white">
+                      <AlertTitle className="text-slate-700 font-semibold">
                         {alert.alert_type.toUpperCase()} - {alert.station_id}
                       </AlertTitle>
-                      <AlertDescription className="text-slate-300 text-xs">
+                      <AlertDescription className="text-slate-600 text-sm">
                         Confidence: {alert.confidence}% | {formatTimestamp(alert.timestamp)}
                       </AlertDescription>
                     </Alert>
                   ))}
                   {tornadoAlerts.length === 0 && (
-                    <p className="text-slate-400 text-sm text-center py-4">No recent alerts</p>
+                    <div className="text-center py-8">
+                      <div className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl">
+                        <Shield className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                        <p className="text-slate-600 text-sm font-medium">All Clear</p>
+                        <p className="text-slate-500 text-xs">No recent tornado alerts</p>
+                      </div>
+                    </div>
                   )}
                 </div>
               </CardContent>
