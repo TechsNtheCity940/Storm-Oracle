@@ -351,19 +351,19 @@ function App() {
           </div>
 
           {/* Main Interactive Radar Display */}
-          <div className="lg:col-span-3 space-y-6">
+          <div className="lg:col-span-3 space-y-8">
             
-            {/* Radar Controls */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardContent className="p-4">
+            {/* Modern Radar Controls */}
+            <Card className="bg-white/80 backdrop-blur-sm border border-blue-100 rounded-2xl shadow-lg">
+              <CardContent className="p-6">
                 <div className="flex flex-wrap items-center gap-4">
                   <Select value={radarType} onValueChange={setRadarType}>
-                    <SelectTrigger className="w-48 bg-slate-700 border-slate-600 text-white">
+                    <SelectTrigger className="w-48 bg-white border-blue-200 text-slate-700 rounded-xl hover:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-600">
-                      <SelectItem value="reflectivity" className="text-white">Reflectivity</SelectItem>
-                      <SelectItem value="velocity" className="text-white" disabled={isPremiumFeature("advanced_radar")}>
+                    <SelectContent className="bg-white border-blue-100 rounded-xl shadow-xl">
+                      <SelectItem value="reflectivity" className="text-slate-700 hover:bg-blue-50 rounded-lg">Reflectivity</SelectItem>
+                      <SelectItem value="velocity" className="text-slate-700 hover:bg-blue-50 rounded-lg" disabled={isPremiumFeature("advanced_radar")}>
                         Velocity {isPremiumFeature("advanced_radar") && "(Premium)"}
                       </SelectItem>
                     </SelectContent>
@@ -372,7 +372,7 @@ function App() {
                   <Button 
                     onClick={analyzeForTornadoes} 
                     disabled={!selectedStation || analyzing}
-                    className="bg-red-600 hover:bg-red-700 text-white mr-2"
+                    className="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-xl px-6 py-2 shadow-lg hover:shadow-xl transition-all duration-300 mr-2"
                   >
                     {analyzing ? (
                       <Activity className="h-4 w-4 mr-2 animate-spin" />
@@ -385,7 +385,7 @@ function App() {
                   <Button 
                     onClick={runAdvancedMLAnalysis} 
                     disabled={!selectedStation || analyzing}
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                    className="bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700 text-white rounded-xl px-6 py-2 shadow-lg hover:shadow-xl transition-all duration-300"
                   >
                     {analyzing ? (
                       <Activity className="h-4 w-4 mr-2 animate-spin" />
@@ -395,13 +395,15 @@ function App() {
                     {analyzing ? "Processing..." : "🌪️ Advanced ML Analysis"}
                   </Button>
 
-                  <div className="flex items-center space-x-2 text-white ml-auto">
-                    <div className={`w-2 h-2 rounded-full ${monitoringStatus.system_status?.monitoring_active ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                    <span className="text-sm">
-                      {monitoringStatus.system_status?.monitoring_active ? 'Auto-Monitoring Active' : 'Manual Mode'}
-                    </span>
+                  <div className="flex items-center space-x-3 ml-auto">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-3 h-3 rounded-full shadow-lg ${monitoringStatus.system_status?.monitoring_active ? 'bg-green-400 animate-pulse shadow-green-200' : 'bg-orange-400 shadow-orange-200'}`}></div>
+                      <span className="text-slate-700 text-sm font-medium">
+                        {monitoringStatus.system_status?.monitoring_active ? 'Auto-Monitoring Active' : 'Manual Mode'}
+                      </span>
+                    </div>
                     {stormCells.length > 0 && (
-                      <Badge variant="destructive" className="ml-2">
+                      <Badge className="bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-full px-3 py-1 shadow-lg">
                         {stormCells.length} Active Storms
                       </Badge>
                     )}
