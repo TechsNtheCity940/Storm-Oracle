@@ -74,9 +74,18 @@ function App() {
 
   const loadRadarStations = async () => {
     try {
+      console.log("Loading radar stations from:", `${API}/radar-stations`);
       const response = await axios.get(`${API}/radar-stations`);
-      setRadarStations(response.data);
-      toast.success("Radar stations loaded successfully");
+      console.log("Radar stations response:", response.data?.length, "stations loaded");
+      
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        setRadarStations(response.data);
+        console.log("Radar stations state updated:", response.data.length);
+        toast.success(`${response.data.length} radar stations loaded successfully`);
+      } else {
+        console.error("Invalid radar stations data:", response.data);
+        toast.error("No radar stations received");
+      }
     } catch (error) {
       console.error("Error loading radar stations:", error);
       toast.error("Failed to load radar stations");
