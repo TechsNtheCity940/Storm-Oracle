@@ -709,24 +709,26 @@ const InteractiveRadarMap = ({
                 <ChevronRight className={`h-3 w-3 ml-auto transition-transform text-blue-600 ${showAdvancedSettings ? 'rotate-90' : ''}`} />
               </Button>
 
-              {/* Advanced Settings Panel */}
+              {/* Modern Advanced Settings Panel */}
               {showAdvancedSettings && (
-                <div className="space-y-3 border-t border-slate-600 pt-3">
-                  <div className="space-y-2">
-                    <label className="text-xs text-slate-400 flex items-center font-medium">
-                      <Palette className="h-3 w-3 mr-1" />
+                <div className="space-y-4 border-t border-blue-100 pt-4">
+                  <div className="space-y-3">
+                    <label className="text-xs text-slate-600 flex items-center font-semibold uppercase tracking-wide">
+                      <div className="p-1 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg mr-2">
+                        <Palette className="h-3 w-3 text-purple-600" />
+                      </div>
                       Color Palette
                     </label>
                     <Select value={colorPalette} onValueChange={setColorPalette}>
-                      <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                      <SelectTrigger className="bg-white border-blue-200 text-slate-700 rounded-xl hover:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-600 max-h-48 overflow-y-auto">
+                      <SelectContent className="bg-white border-blue-100 rounded-xl shadow-xl max-h-48 overflow-y-auto">
                         {Object.entries(COLOR_PALETTES).map(([key, palette]) => (
-                          <SelectItem key={key} value={key} className="text-white hover:bg-slate-700">
+                          <SelectItem key={key} value={key} className="text-slate-700 hover:bg-blue-50 rounded-lg">
                             <div>
-                              <div className="font-medium">{palette.name}</div>
-                              <div className="text-xs text-slate-400">{palette.description}</div>
+                              <div className="font-semibold">{palette.name}</div>
+                              <div className="text-xs text-slate-500">{palette.description}</div>
                             </div>
                           </SelectItem>
                         ))}
