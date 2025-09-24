@@ -1341,6 +1341,48 @@ const InteractiveRadarMap = ({
           transform: scale(1.1);
         }
         
+        /* Smooth radar transition animations */
+        .smooth-transition {
+          transition: opacity 0.3s ease-in-out !important;
+        }
+        
+        .preload-layer {
+          visibility: hidden;
+        }
+
+        /* Lightning animation */
+        @keyframes lightning-flash {
+          0%, 90%, 100% { opacity: 1; }
+          5%, 15%, 25% { opacity: 0.3; }
+          10%, 20% { opacity: 1; }
+        }
+
+        /* Rotation animation for mesocyclone markers */
+        @keyframes rotation-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        /* Enhanced weather marker styles */
+        .lightning-marker {
+          filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.8));
+        }
+
+        .hail-marker {
+          filter: drop-shadow(0 0 6px rgba(225, 29, 72, 0.6));
+        }
+
+        .rotation-marker {
+          filter: drop-shadow(0 0 10px rgba(220, 38, 38, 0.8));
+          border: 3px solid rgba(255, 255, 255, 0.9) !important;
+        }
+
+        /* Weather popup styling */
+        .weather-popup {
+          font-family: system-ui, -apple-system, sans-serif;
+          max-width: 200px;
+        }
+
         /* Real-time data indicator */
         @keyframes dataLive {
           0%, 100% { opacity: 1; }
@@ -1349,6 +1391,15 @@ const InteractiveRadarMap = ({
         
         .data-live-indicator {
           animation: dataLive 2s infinite;
+        }
+
+        /* Smooth layer transitions */
+        .leaflet-tile-pane {
+          transition: opacity 0.2s ease-in-out;
+        }
+
+        .radar-overlay {
+          transition: opacity 0.3s ease-in-out !important;
         }
       `}</style>
     </div>
