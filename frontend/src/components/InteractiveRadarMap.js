@@ -246,7 +246,7 @@ const RadarStationMarkers = ({ radarStations, onStationClick, selectedStation })
         </div>
       `);
 
-      marker.on('click', () => onStationClick(station));
+      marker.on('click', () => onStationClick(station.station_id));
     });
   }, [map, radarStations, onStationClick, selectedStation]);
 
