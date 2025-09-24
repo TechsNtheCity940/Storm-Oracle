@@ -1125,6 +1125,30 @@ const InteractiveRadarMap = ({
               {/* Modern Advanced Settings Panel */}
               {showAdvancedSettings && (
                 <div className="space-y-4 border-t border-blue-100 pt-4">
+                  
+                  {/* Wind Animation Toggle */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-600 font-semibold uppercase tracking-wide flex items-center">
+                      <div className="p-1 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-lg mr-2">
+                        <Wind className="h-3 w-3 text-cyan-600" />
+                      </div>
+                      Wind Animation
+                    </label>
+                    <div className="flex items-center justify-between bg-white/80 p-3 rounded-xl">
+                      <span className="text-sm text-slate-700">Show Wind Direction</span>
+                      <button
+                        onClick={() => setShowWindAnimation(!showWindAnimation)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          showWindAnimation ? 'bg-blue-600' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          showWindAnimation ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="space-y-3">
                     <label className="text-xs text-slate-600 flex items-center font-semibold uppercase tracking-wide">
                       <div className="p-1 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg mr-2">
