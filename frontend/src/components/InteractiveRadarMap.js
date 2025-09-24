@@ -566,15 +566,15 @@ const InteractiveRadarMap = ({
                 </div>
               )}
 
-              {/* Playback Controls */}
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400 font-medium">Animation Controls</label>
+              {/* Modern Playback Controls */}
+              <div className="space-y-3">
+                <label className="text-xs text-slate-600 font-semibold uppercase tracking-wide">Animation Controls</label>
                 <div className="flex items-center space-x-2">
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => goToFrame(0)}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="border-blue-200 text-slate-700 hover:bg-blue-50 hover:border-blue-300 rounded-lg transition-all"
                     title="Go to First Frame"
                   >
                     <SkipBack className="h-3 w-3" />
@@ -582,9 +582,8 @@ const InteractiveRadarMap = ({
                   
                   <Button
                     size="sm"
-                    variant="outline"
                     onClick={togglePlayback}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className={`${isPlaying ? 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700' : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700'} text-white rounded-lg transition-all shadow-lg hover:shadow-xl`}
                     title={isPlaying ? "Pause Animation" : "Play Animation"}
                   >
                     {isPlaying ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
@@ -594,7 +593,7 @@ const InteractiveRadarMap = ({
                     size="sm"
                     variant="outline"
                     onClick={() => goToFrame(radarFrames.length - 1)}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="border-blue-200 text-slate-700 hover:bg-blue-50 hover:border-blue-300 rounded-lg transition-all"
                     title="Go to Latest Frame"
                   >
                     <SkipForward className="h-3 w-3" />
@@ -605,10 +604,10 @@ const InteractiveRadarMap = ({
                     variant="outline"
                     onClick={() => loadRadarFrames(selectedStation?.station_id)}
                     disabled={isLoading}
-                    className="border-slate-600 text-white hover:bg-slate-700"
+                    className="border-blue-200 text-slate-700 hover:bg-blue-50 hover:border-blue-300 rounded-lg transition-all"
                     title="Refresh Radar Data"
                   >
-                    <RotateCcw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+                    <RotateCcw className={`h-3 w-3 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
                   </Button>
                 </div>
               </div>
