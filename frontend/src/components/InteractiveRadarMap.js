@@ -536,18 +536,18 @@ const InteractiveRadarMap = ({
         </CardHeader>
         
         {!controlsCollapsed && (
-          <CardContent className="space-y-4 overflow-y-auto overflow-x-hidden max-h-full pr-2">
-            <div className="space-y-4">
+          <CardContent className="space-y-5 overflow-y-auto overflow-x-hidden max-h-full pr-2 custom-scrollbar">
+            <div className="space-y-5">
               {/* Data Type Selection */}
               <div className="space-y-2">
-                <label className="text-xs text-slate-400 font-medium">Radar Data Type</label>
+                <label className="text-xs text-slate-600 font-semibold uppercase tracking-wide">Radar Data Type</label>
                 <Select value={dataType} onValueChange={handleDataTypeChange}>
-                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                  <SelectTrigger className="bg-white border-blue-200 text-slate-700 rounded-xl hover:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-600 max-h-60 overflow-y-auto">
+                  <SelectContent className="bg-white border-blue-100 rounded-xl shadow-xl max-h-60 overflow-y-auto">
                     {Object.entries(RADAR_DATA_TYPES).map(([key, config]) => (
-                      <SelectItem key={key} value={key} className="text-white hover:bg-slate-700">
+                      <SelectItem key={key} value={key} className="text-slate-700 hover:bg-blue-50 rounded-lg">
                         {config.name}
                       </SelectItem>
                     ))}
@@ -557,11 +557,11 @@ const InteractiveRadarMap = ({
 
               {/* Current Selection Info */}
               {selectedStation && (
-                <div className="bg-slate-700/50 p-3 rounded border border-slate-600">
-                  <div className="text-white text-sm font-medium">{selectedStation.name}</div>
-                  <div className="text-slate-300 text-xs">{selectedStation.station_id}</div>
-                  <div className="text-slate-400 text-xs">
-                    {selectedStation.latitude.toFixed(4)}°, {selectedStation.longitude.toFixed(4)}°
+                <div className="bg-gradient-to-br from-blue-50 to-sky-50 p-4 rounded-2xl border border-blue-100">
+                  <div className="text-slate-700 text-sm font-bold">{selectedStation.name}</div>
+                  <div className="text-blue-600 text-xs font-semibold">{selectedStation.station_id}</div>
+                  <div className="text-slate-500 text-xs mt-1">
+                    📍 {selectedStation.latitude.toFixed(4)}°, {selectedStation.longitude.toFixed(4)}°
                   </div>
                 </div>
               )}
