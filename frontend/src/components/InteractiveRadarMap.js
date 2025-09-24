@@ -1476,6 +1476,15 @@ const InteractiveRadarMap = ({
           50% { opacity: 0.7; transform: scale(1.1); }
         }
         
+        @keyframes wind-flow {
+          0%, 100% { opacity: 0.8; }
+          50% { opacity: 0.4; }
+        }
+        
+        .wind-marker {
+          pointer-events: none;
+        }
+        
         .radar-overlay {
           pointer-events: none;
         }
