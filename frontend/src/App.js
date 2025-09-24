@@ -225,29 +225,41 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100">
       <Toaster position="top-right" />
-      {/* Header */}
-      <header className="border-b border-slate-700 bg-slate-900/80 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4">
+      {/* Modern Header */}
+      <header className="border-b border-blue-100 bg-white/90 backdrop-blur-md shadow-sm">
+        <div className="container mx-auto px-6 py-5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-blue-600 rounded-lg">
-                <Target className="h-6 w-6 text-white" />
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-sky-600 rounded-2xl shadow-lg">
+                <Target className="h-7 w-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Storm Oracle</h1>
-                <p className="text-slate-400 text-sm">AI-Powered Tornado Prediction System</p>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-sky-700 bg-clip-text text-transparent">
+                  Storm Oracle
+                </h1>
+                <p className="text-slate-600 text-sm font-medium">AI-Powered Tornado Prediction System</p>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
-              <Badge variant={subscription.tier === "premium" ? "default" : "secondary"}>
+              <Badge 
+                variant={subscription.tier === "premium" ? "default" : "secondary"}
+                className={`px-3 py-1 rounded-full font-medium ${
+                  subscription.tier === "premium" 
+                    ? "bg-gradient-to-r from-blue-500 to-sky-600 text-white" 
+                    : "bg-slate-100 text-slate-700"
+                }`}
+              >
                 {subscription.tier.charAt(0).toUpperCase() + subscription.tier.slice(1)}
               </Badge>
               
               {subscription.tier === "free" && (
-                <Button onClick={upgradeSubscription} variant="outline" className="border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white">
+                <Button 
+                  onClick={upgradeSubscription} 
+                  className="bg-gradient-to-r from-blue-500 to-sky-600 hover:from-blue-600 hover:to-sky-700 text-white rounded-xl px-6 py-2 shadow-lg hover:shadow-xl transition-all duration-300"
+                >
                   <Zap className="h-4 w-4 mr-2" />
                   Upgrade to Premium
                 </Button>
