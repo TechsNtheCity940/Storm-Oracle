@@ -181,6 +181,36 @@ class StormOracleAPITester:
         return self.run_test("AI Chat", "POST", "chat", 
                            params={"message": test_message, "user_id": "user123"})
 
+    def test_active_storms(self):
+        """Test active storms monitoring endpoint"""
+        return self.run_test("Get Active Storms", "GET", "active-storms")
+
+    def test_monitoring_status(self):
+        """Test monitoring status endpoint"""
+        return self.run_test("Get Monitoring Status", "GET", "monitoring-status")
+
+    def test_ml_tornado_analysis(self, station_id="KEAX"):
+        """Test advanced ML tornado analysis endpoint (PREMIUM FEATURE)"""
+        print(f"\n🚀 PREMIUM TEST: Advanced ML Tornado Analysis for {station_id}")
+        success, data = self.run_test(f"Advanced ML Tornado Analysis for {station_id}", "POST", 
+                                    "ml-tornado-analysis", 
+                                    params={"station_id": station_id, "data_type": "reflectivity"})
+        
+        if success and data:
+            print("   🧠 Advanced ML Analysis Response received!")
+            if '🌪️ ADVANCED_ML_PREDICTION' in data:
+                ml_prediction = data['🌪️ ADVANCED_ML_PREDICTION']
+                print(f"   Tornado Probability: {ml_prediction.get('tornado_probability', 'N/A')}")
+                print(f"   Most Likely EF Scale: {ml_prediction.get('most_likely_ef_scale', 'N/A')}")
+                print(f"   Alert Level: {ml_prediction.get('alert_level', 'N/A')}")
+            
+            if '🤖 AI_CONTEXTUAL_ANALYSIS' in data:
+                ai_analysis = data['🤖 AI_CONTEXTUAL_ANALYSIS']
+                analysis_preview = ai_analysis[:150] + "..." if len(ai_analysis) > 150 else ai_analysis
+                print(f"   AI Contextual Analysis Preview: {analysis_preview}")
+        
+        return success, data
+
     def run_all_tests(self):
         """Run comprehensive test suite"""
         print("🌪️  Storm Oracle Backend API Test Suite")
