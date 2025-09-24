@@ -78,53 +78,109 @@ L.Icon.Default.mergeOptions({
 
 const RadarOverlay = ({ radarFrames, currentFrame, opacity, colorPalette, dataType }) => {
   const map = useMap();
-  const overlayRef = useRef(null);
+  const currentOverlayRef = useRef(null);
+  const nextOverlayRef = useRef(null);
+  const preloadedFrames = useRef(new Map());
+
+  // Preload radar frames for smooth transitions
+  useEffect(() => {
+    if (radarFrames.length > 0) {
+      radarFrames.forEach((frame, index) => {
+        if (frame && frame.rainViewerPath && !preloadedFrames.current.has(index)) {
+          const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${frame.rainViewerPath}/512/{z}/{x}/{y}/2/1_1.png`;
+          
+          const preloadLayer = L.tileLayer(tileUrl, {
+            opacity: 0,
+            attribution: 'RainViewer',
+            maxZoom: 18,
+            className: `radar-overlay radar-${dataType}-${colorPalette} preload-layer`
+          });
+          
+          preloadedFrames.current.set(index, preloadLayer);
+        }
+      });
+    }
+  }, [radarFrames, dataType, colorPalette]);
 
   useEffect(() => {
     if (radarFrames.length > 0 && currentFrame < radarFrames.length) {
-      // Remove existing overlay
-      if (overlayRef.current) {
-        map.removeLayer(overlayRef.current);
-      }
-
       const frame = radarFrames[currentFrame];
+      
       if (frame && frame.rainViewerPath) {
-        // Create RainViewer tile layer for real radar data
         const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${frame.rainViewerPath}/512/{z}/{x}/{y}/2/1_1.png`;
         
-        overlayRef.current = L.tileLayer(tileUrl, {
-          opacity: opacity,
+        // Create new overlay for smooth transition
+        const newOverlay = L.tileLayer(tileUrl, {
+          opacity: 0, // Start invisible
           attribution: 'RainViewer',
           maxZoom: 18,
-          className: `radar-overlay radar-${dataType}-${colorPalette}`
+          className: `radar-overlay radar-${dataType}-${colorPalette} smooth-transition`
         }).addTo(map);
+
+        // Smooth fade transition
+        setTimeout(() => {
+          if (newOverlay) {
+            newOverlay.setOpacity(opacity);
+          }
+        }, 50);
+
+        // Remove old overlay after transition
+        if (currentOverlayRef.current) {
+          const oldOverlay = currentOverlayRef.current;
+          setTimeout(() => {
+            if (oldOverlay && map.hasLayer(oldOverlay)) {
+              oldOverlay.setOpacity(0);
+              setTimeout(() => {
+                if (map.hasLayer(oldOverlay)) {
+                  map.removeLayer(oldOverlay);
+                }
+              }, 200);
+            }
+          }, 100);
+        }
+
+        currentOverlayRef.current = newOverlay;
         
-        console.log("Added RainViewer radar overlay:", frame.rainViewerPath);
       } else if (frame && frame.imageUrl && !frame.error) {
-        // Fallback to image overlay for other sources
+        // Fallback with smooth transition for other sources
         const imageBounds = [
           [frame.bounds.south, frame.bounds.west],
           [frame.bounds.north, frame.bounds.east]
         ];
 
-        // Apply color filter based on palette and data type
-        const filterClass = `radar-${dataType}-${colorPalette}`;
-
-        overlayRef.current = L.imageOverlay(frame.imageUrl, imageBounds, {
-          opacity: opacity,
+        const newOverlay = L.imageOverlay(frame.imageUrl, imageBounds, {
+          opacity: 0,
           interactive: false,
-          className: `radar-overlay ${filterClass}`
+          className: `radar-overlay radar-${dataType}-${colorPalette} smooth-transition`
         }).addTo(map);
-        
-        console.log("Added image overlay:", frame.imageUrl);
-      } else {
-        console.log("No valid radar data for frame:", currentFrame);
+
+        setTimeout(() => {
+          if (newOverlay) {
+            newOverlay.setOpacity(opacity);
+          }
+        }, 50);
+
+        if (currentOverlayRef.current) {
+          const oldOverlay = currentOverlayRef.current;
+          setTimeout(() => {
+            if (oldOverlay && map.hasLayer(oldOverlay)) {
+              oldOverlay.setOpacity(0);
+              setTimeout(() => {
+                if (map.hasLayer(oldOverlay)) {
+                  map.removeLayer(oldOverlay);
+                }
+              }, 200);
+            }
+          }, 100);
+        }
+
+        currentOverlayRef.current = newOverlay;
       }
     }
 
     return () => {
-      if (overlayRef.current) {
-        map.removeLayer(overlayRef.current);
+      if (currentOverlayRef.current && map.hasLayer(currentOverlayRef.current)) {
+        map.removeLayer(currentOverlayRef.current);
       }
     };
   }, [map, radarFrames, currentFrame, opacity, colorPalette, dataType]);
