@@ -28,7 +28,9 @@ function App() {
   const [radarType, setRadarType] = useState("reflectivity");
   const [loading, setLoading] = useState(false);
   const [stormCells, setStormCells] = useState([]);
-  const [monitoringStatus, setMonitoringStatus] = useState({});
+  const [monitoringStatus, setMonitoringStatus] = useState({
+    system_status: { monitoring_active: true } // Enable monitoring by default
+  });
   const [showRadarMap, setShowRadarMap] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResults, setAnalysisResults] = useState(null);
