@@ -736,34 +736,36 @@ const InteractiveRadarMap = ({
                     </Select>
                   </div>
 
-                  {/* Color Preview */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-400 font-medium">Color Preview</label>
-                    <div className="flex space-x-1 flex-wrap">
+                  {/* Modern Color Preview */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-600 font-semibold uppercase tracking-wide">Color Preview</label>
+                    <div className="flex space-x-1 flex-wrap p-3 bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl border border-gray-200">
                       {COLOR_PALETTES[colorPalette]?.colors.map((color, index) => (
                         <div
                           key={index}
-                          className="w-6 h-6 rounded border border-slate-600 flex-shrink-0"
+                          className="w-7 h-7 rounded-lg border-2 border-white shadow-md flex-shrink-0 hover:scale-110 transition-transform"
                           style={{ backgroundColor: color }}
                           title={`Intensity Level ${index + 1}`}
                         />
                       ))}
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">
+                    <div className="text-xs text-slate-500 bg-blue-50 p-2 rounded-lg">
                       {COLOR_PALETTES[colorPalette]?.description}
                     </div>
                   </div>
 
-                  {/* Additional Metadata */}
-                  <div className="space-y-2 text-xs text-slate-400">
-                    <div className="border-t border-slate-600 pt-2">
-                      <div>Data Source: {realRadarData?.api_source || 'National Weather Service'}</div>
-                      <div>Update Interval: {realRadarData?.refresh_interval || 300}s</div>
-                      {realRadarData?.coordinates && (
-                        <div>
-                          Radar Center: {realRadarData.coordinates.lat.toFixed(4)}°, {realRadarData.coordinates.lon.toFixed(4)}°
-                        </div>
-                      )}
+                  {/* Modern Metadata */}
+                  <div className="space-y-2 text-xs text-slate-600">
+                    <div className="border-t border-blue-100 pt-3">
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-xl space-y-1">
+                        <div className="font-medium">📡 Data Source: {realRadarData?.api_source || 'National Weather Service'}</div>
+                        <div className="font-medium">🔄 Update Interval: {realRadarData?.refresh_interval || 300}s</div>
+                        {realRadarData?.coordinates && (
+                          <div className="font-medium">
+                            📍 Radar Center: {realRadarData.coordinates.lat.toFixed(4)}°, {realRadarData.coordinates.lon.toFixed(4)}°
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
