@@ -634,10 +634,11 @@ const InteractiveRadarMap = ({
               </div>
 
               {/* Frame Count Control */}
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400 font-medium">
-                  Frames to Load: {frameCount}
-                  <span className="text-slate-500 ml-1">({(frameCount * 10)} min)</span>
+              <div className="space-y-3">
+                <label className="text-xs text-slate-600 font-semibold uppercase tracking-wide">
+                  Frames to Load: 
+                  <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg ml-2 normal-case">{frameCount}</span>
+                  <span className="text-slate-500 ml-1 normal-case">({(frameCount * 10)} min)</span>
                 </label>
                 <Slider
                   value={[frameCount]}
@@ -650,9 +651,10 @@ const InteractiveRadarMap = ({
               </div>
 
               {/* Speed Control */}
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400 font-medium">
-                  Animation Speed: {(1000/playbackSpeed).toFixed(1)}x
+              <div className="space-y-3">
+                <label className="text-xs text-slate-600 font-semibold uppercase tracking-wide">
+                  Animation Speed: 
+                  <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg ml-2 normal-case">{(1000/playbackSpeed).toFixed(1)}x</span>
                 </label>
                 <Slider
                   value={[playbackSpeed]}
@@ -665,9 +667,10 @@ const InteractiveRadarMap = ({
               </div>
 
               {/* Opacity Control */}
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400 font-medium">
-                  Radar Opacity: {Math.round(radarOpacity * 100)}%
+              <div className="space-y-3">
+                <label className="text-xs text-slate-600 font-semibold uppercase tracking-wide">
+                  Radar Opacity: 
+                  <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg ml-2 normal-case">{Math.round(radarOpacity * 100)}%</span>
                 </label>
                 <Slider
                   value={[radarOpacity]}
