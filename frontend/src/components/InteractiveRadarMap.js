@@ -682,12 +682,15 @@ const InteractiveRadarMap = ({
                 />
               </div>
 
-              {/* Loading Status */}
+              {/* Modern Loading Status */}
               {isLoading && (
-                <div className="bg-blue-600/20 border border-blue-600/30 p-3 rounded">
-                  <div className="text-blue-300 text-sm flex items-center">
-                    <RotateCcw className="h-4 w-4 mr-2 animate-spin" />
+                <div className="bg-gradient-to-r from-blue-50 to-sky-50 border border-blue-200 p-4 rounded-2xl">
+                  <div className="text-slate-700 text-sm flex items-center font-medium">
+                    <RotateCcw className="h-4 w-4 mr-3 animate-spin text-blue-600" />
                     Loading {frameCount} radar frames...
+                  </div>
+                  <div className="mt-2 bg-blue-100 rounded-full h-2">
+                    <div className="bg-gradient-to-r from-blue-500 to-sky-600 h-full rounded-full animate-pulse w-3/4"></div>
                   </div>
                 </div>
               )}
