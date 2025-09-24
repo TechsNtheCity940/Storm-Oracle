@@ -242,6 +242,15 @@ class StormOracleAPITester:
         # Test AI chat
         self.test_ai_chat()
         
+        # Test active storms monitoring
+        self.test_active_storms()
+        
+        # Test monitoring status
+        self.test_monitoring_status()
+        
+        # Test PREMIUM ML tornado analysis
+        self.test_ml_tornado_analysis(test_station)
+        
         # Print final results
         self.print_summary()
 
