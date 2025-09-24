@@ -211,6 +211,51 @@ class StormOracleAPITester:
         
         return success, data
 
+    def test_radar_data_variations(self, station_id="KEAX"):
+        """Test radar data endpoint with different data types"""
+        data_types = ["reflectivity", "velocity", "base_reflectivity", "base_velocity"]
+        
+        print(f"\n📡 Testing Radar Data Variations for {station_id}")
+        all_success = True
+        
+        for data_type in data_types:
+            success, data = self.run_test(f"Radar Data ({data_type}) for {station_id}", "GET", 
+                                        f"radar-data/{station_id}", 
+                                        params={"data_type": data_type})
+            if not success:
+                all_success = False
+        
+        return all_success, {}
+
+    def test_state_filtered_stations(self):
+        """Test radar stations filtered by state"""
+        test_states = ["TX", "CA", "FL"]
+        
+        print(f"\n🗺️  Testing State-Filtered Radar Stations")
+        all_success = True
+        
+        for state in test_states:
+            success, data = self.run_test(f"Radar Stations in {state}", "GET", 
+                                        "radar-stations", 
+                                        params={"state": state})
+            
+            if success and data and isinstance(data, list):
+                state_count = len(data)
+                print(f"   Found {state_count} stations in {state}")
+                
+                # Verify all stations are from the requested state
+                if state_count > 0:
+                    wrong_state_count = sum(1 for station in data if station.get('state') != state)
+                    if wrong_state_count > 0:
+                        print(f"   ⚠️  {wrong_state_count} stations have wrong state")
+                        all_success = False
+                    else:
+                        print(f"   ✅ All stations correctly filtered for {state}")
+            else:
+                all_success = False
+        
+        return all_success, {}
+
     def run_all_tests(self):
         """Run comprehensive test suite"""
         print("🌪️  Storm Oracle Backend API Test Suite")
