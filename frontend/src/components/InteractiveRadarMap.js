@@ -171,112 +171,139 @@ L.Icon.Default.mergeOptions({
 
 const RadarOverlay = ({ radarFrames, currentFrame, opacity, colorPalette, dataType }) => {
   const map = useMap();
-  const currentOverlayRef = useRef(null);
-  const nextOverlayRef = useRef(null);
-  const preloadedFrames = useRef(new Map());
+  const layerARef = useRef(null);
+  const layerBRef = useRef(null);
+  const activeLayerRef = useRef('A');
+  const isTransitioningRef = useRef(false);
 
-  // Preload radar frames for smooth transitions
   useEffect(() => {
-    if (radarFrames.length > 0) {
-      radarFrames.forEach((frame, index) => {
-        if (frame && frame.rainViewerPath && !preloadedFrames.current.has(index)) {
-          const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${frame.rainViewerPath}/512/{z}/{x}/{y}/2/1_1.png`;
-          
-          const preloadLayer = L.tileLayer(tileUrl, {
-            opacity: 0,
-            attribution: 'RainViewer',
-            maxZoom: 18,
-            className: `radar-overlay radar-${dataType}-${colorPalette} preload-layer`
-          });
-          
-          preloadedFrames.current.set(index, preloadLayer);
-        }
+    if (radarFrames.length === 0 || currentFrame >= radarFrames.length || isTransitioningRef.current) {
+      return;
+    }
+
+    const frame = radarFrames[currentFrame];
+    if (!frame || (!frame.rainViewerPath && !frame.imageUrl)) {
+      return;
+    }
+
+    // Prevent overlapping transitions
+    isTransitioningRef.current = true;
+
+    // Determine which layer to use (A or B for crossfade)
+    const currentLayerRef = activeLayerRef.current === 'A' ? layerARef : layerBRef;
+    const nextLayerRef = activeLayerRef.current === 'A' ? layerBRef : layerARef;
+
+    // Create the new radar layer
+    let newLayer;
+    if (frame.rainViewerPath) {
+      const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${frame.rainViewerPath}/512/{z}/{x}/{y}/2/1_1.png`;
+      newLayer = L.tileLayer(tileUrl, {
+        opacity: 0,
+        attribution: 'RainViewer',
+        maxZoom: 18,
+        className: `radar-overlay-smooth radar-${dataType}-${colorPalette}`,
+        fadeAnimation: true,
+        crossOrigin: true
+      });
+    } else if (frame.imageUrl && !frame.error) {
+      const imageBounds = [
+        [frame.bounds.south, frame.bounds.west],
+        [frame.bounds.north, frame.bounds.east]
+      ];
+      newLayer = L.imageOverlay(frame.imageUrl, imageBounds, {
+        opacity: 0,
+        interactive: false,
+        className: `radar-overlay-smooth radar-${dataType}-${colorPalette}`,
+        crossOrigin: 'anonymous'
       });
     }
-  }, [radarFrames, dataType, colorPalette]);
 
-  useEffect(() => {
-    if (radarFrames.length > 0 && currentFrame < radarFrames.length) {
-      const frame = radarFrames[currentFrame];
-      
-      if (frame && frame.rainViewerPath) {
-        const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${frame.rainViewerPath}/512/{z}/{x}/{y}/2/1_1.png`;
-        
-        // Create new overlay for smooth transition
-        const newOverlay = L.tileLayer(tileUrl, {
-          opacity: 0, // Start invisible
-          attribution: 'RainViewer',
-          maxZoom: 18,
-          className: `radar-overlay radar-${dataType}-${colorPalette} smooth-transition`
-        }).addTo(map);
-
-        // Smooth fade transition
-        setTimeout(() => {
-          if (newOverlay) {
-            newOverlay.setOpacity(opacity);
-          }
-        }, 50);
-
-        // Remove old overlay after transition
-        if (currentOverlayRef.current) {
-          const oldOverlay = currentOverlayRef.current;
-          setTimeout(() => {
-            if (oldOverlay && map.hasLayer(oldOverlay)) {
-              oldOverlay.setOpacity(0);
-              setTimeout(() => {
-                if (map.hasLayer(oldOverlay)) {
-                  map.removeLayer(oldOverlay);
-                }
-              }, 200);
-            }
-          }, 100);
-        }
-
-        currentOverlayRef.current = newOverlay;
-        
-      } else if (frame && frame.imageUrl && !frame.error) {
-        // Fallback with smooth transition for other sources
-        const imageBounds = [
-          [frame.bounds.south, frame.bounds.west],
-          [frame.bounds.north, frame.bounds.east]
-        ];
-
-        const newOverlay = L.imageOverlay(frame.imageUrl, imageBounds, {
-          opacity: 0,
-          interactive: false,
-          className: `radar-overlay radar-${dataType}-${colorPalette} smooth-transition`
-        }).addTo(map);
-
-        setTimeout(() => {
-          if (newOverlay) {
-            newOverlay.setOpacity(opacity);
-          }
-        }, 50);
-
-        if (currentOverlayRef.current) {
-          const oldOverlay = currentOverlayRef.current;
-          setTimeout(() => {
-            if (oldOverlay && map.hasLayer(oldOverlay)) {
-              oldOverlay.setOpacity(0);
-              setTimeout(() => {
-                if (map.hasLayer(oldOverlay)) {
-                  map.removeLayer(oldOverlay);
-                }
-              }, 200);
-            }
-          }, 100);
-        }
-
-        currentOverlayRef.current = newOverlay;
-      }
+    if (!newLayer) {
+      isTransitioningRef.current = false;
+      return;
     }
 
-    return () => {
-      if (currentOverlayRef.current && map.hasLayer(currentOverlayRef.current)) {
-        map.removeLayer(currentOverlayRef.current);
+    // Add new layer to map (invisible)
+    newLayer.addTo(map);
+    
+    // Wait for layer to be ready, then start crossfade
+    const startCrossfade = () => {
+      // Fade in new layer
+      let fadeInOpacity = 0;
+      const fadeInInterval = setInterval(() => {
+        fadeInOpacity += 0.1;
+        if (fadeInOpacity >= opacity) {
+          fadeInOpacity = opacity;
+          clearInterval(fadeInInterval);
+          
+          // Crossfade complete - cleanup old layer
+          if (currentLayerRef.current && map.hasLayer(currentLayerRef.current)) {
+            map.removeLayer(currentLayerRef.current);
+          }
+          
+          // Store new layer and switch active reference
+          nextLayerRef.current = newLayer;
+          activeLayerRef.current = activeLayerRef.current === 'A' ? 'B' : 'A';
+          isTransitioningRef.current = false;
+        }
+        
+        if (newLayer && map.hasLayer(newLayer)) {
+          newLayer.setOpacity(fadeInOpacity);
+        }
+      }, 30); // 30ms intervals for smooth 60fps animation
+
+      // Simultaneously fade out old layer if it exists
+      if (currentLayerRef.current && map.hasLayer(currentLayerRef.current)) {
+        let fadeOutOpacity = currentLayerRef.current.options.opacity || opacity;
+        const fadeOutInterval = setInterval(() => {
+          fadeOutOpacity -= 0.1;
+          if (fadeOutOpacity <= 0 || !map.hasLayer(currentLayerRef.current)) {
+            clearInterval(fadeOutInterval);
+            return;
+          }
+          currentLayerRef.current.setOpacity(fadeOutOpacity);
+        }, 30);
+      } else {
+        // No old layer to fade out, just fade in new layer
+        isTransitioningRef.current = false;
       }
     };
+
+    // For tile layers, wait for tiles to load
+    if (frame.rainViewerPath) {
+      newLayer.on('load', startCrossfade);
+      newLayer.on('tileerror', () => {
+        console.warn('Radar tile failed to load, skipping smooth transition');
+        if (newLayer && map.hasLayer(newLayer)) {
+          newLayer.setOpacity(opacity);
+        }
+        isTransitioningRef.current = false;
+      });
+      
+      // Fallback timeout in case load event doesn't fire
+      setTimeout(() => {
+        if (isTransitioningRef.current) {
+          startCrossfade();
+        }
+      }, 500);
+    } else {
+      // For image overlays, start crossfade immediately
+      setTimeout(startCrossfade, 50);
+    }
+
   }, [map, radarFrames, currentFrame, opacity, colorPalette, dataType]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (layerARef.current && map.hasLayer(layerARef.current)) {
+        map.removeLayer(layerARef.current);
+      }
+      if (layerBRef.current && map.hasLayer(layerBRef.current)) {
+        map.removeLayer(layerBRef.current);
+      }
+    };
+  }, [map]);
 
   return null;
 };
