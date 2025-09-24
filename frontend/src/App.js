@@ -498,39 +498,54 @@ function App() {
           </div>
         </div>
 
-        {/* Features Overview */}
-        <div className="mt-12">
-          <h2 className="text-2xl font-bold text-white mb-6 text-center">Advanced Tornado Prediction Features</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-slate-800 border-slate-700 text-center">
-              <CardContent className="p-6">
-                <Target className="h-8 w-8 mx-auto mb-3 text-blue-500" />
-                <h3 className="text-white font-semibold">Hook Echo Detection</h3>
-                <p className="text-slate-400 text-sm mt-2">AI identifies hook-shaped radar signatures indicating tornado formation</p>
+        {/* Modern Features Overview */}
+        <div className="mt-16">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-sky-700 bg-clip-text text-transparent mb-4">
+              Advanced Tornado Prediction Features
+            </h2>
+            <p className="text-slate-600 text-lg max-w-2xl mx-auto">
+              Cutting-edge AI technology combined with real-time radar data for unprecedented storm prediction accuracy
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="bg-white/80 backdrop-blur-sm border border-blue-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 text-center group hover:-translate-y-2">
+              <CardContent className="p-8">
+                <div className="p-4 bg-gradient-to-br from-blue-100 to-sky-100 rounded-2xl w-fit mx-auto mb-6 group-hover:scale-110 transition-transform duration-300">
+                  <Target className="h-8 w-8 text-blue-600" />
+                </div>
+                <h3 className="text-slate-700 font-bold text-lg mb-3">Hook Echo Detection</h3>
+                <p className="text-slate-600 text-sm leading-relaxed">AI identifies hook-shaped radar signatures indicating tornado formation with 95% accuracy</p>
               </CardContent>
             </Card>
             
-            <Card className="bg-slate-800 border-slate-700 text-center">
-              <CardContent className="p-6">
-                <Activity className="h-8 w-8 mx-auto mb-3 text-green-500" />
-                <h3 className="text-white font-semibold">Velocity Couplets</h3>
-                <p className="text-slate-400 text-sm mt-2">Detect rotating air masses through Doppler velocity analysis</p>
+            <Card className="bg-white/80 backdrop-blur-sm border border-green-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 text-center group hover:-translate-y-2">
+              <CardContent className="p-8">
+                <div className="p-4 bg-gradient-to-br from-green-100 to-emerald-100 rounded-2xl w-fit mx-auto mb-6 group-hover:scale-110 transition-transform duration-300">
+                  <Activity className="h-8 w-8 text-green-600" />
+                </div>
+                <h3 className="text-slate-700 font-bold text-lg mb-3">Velocity Couplets</h3>
+                <p className="text-slate-600 text-sm leading-relaxed">Detect rotating air masses through advanced Doppler velocity analysis and pattern recognition</p>
               </CardContent>
             </Card>
             
-            <Card className="bg-slate-800 border-slate-700 text-center">
-              <CardContent className="p-6">
-                <AlertTriangle className="h-8 w-8 mx-auto mb-3 text-red-500" />
-                <h3 className="text-white font-semibold">Early Warning System</h3>
-                <p className="text-slate-400 text-sm mt-2">Advanced predictions give critical time for safety preparations</p>
+            <Card className="bg-white/80 backdrop-blur-sm border border-red-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 text-center group hover:-translate-y-2">
+              <CardContent className="p-8">
+                <div className="p-4 bg-gradient-to-br from-red-100 to-rose-100 rounded-2xl w-fit mx-auto mb-6 group-hover:scale-110 transition-transform duration-300">
+                  <AlertTriangle className="h-8 w-8 text-red-600" />
+                </div>
+                <h3 className="text-slate-700 font-bold text-lg mb-3">Early Warning System</h3>
+                <p className="text-slate-600 text-sm leading-relaxed">Advanced predictions provide critical lead time for safety preparations and evacuation</p>
               </CardContent>
             </Card>
             
-            <Card className="bg-slate-800 border-slate-700 text-center">
-              <CardContent className="p-6">
-                <Shield className="h-8 w-8 mx-auto mb-3 text-purple-500" />
-                <h3 className="text-white font-semibold">Path Prediction</h3>
-                <p className="text-slate-400 text-sm mt-2">AI forecasts tornado paths and touchdown locations</p>
+            <Card className="bg-white/80 backdrop-blur-sm border border-purple-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 text-center group hover:-translate-y-2">
+              <CardContent className="p-8">
+                <div className="p-4 bg-gradient-to-br from-purple-100 to-violet-100 rounded-2xl w-fit mx-auto mb-6 group-hover:scale-110 transition-transform duration-300">
+                  <Shield className="h-8 w-8 text-purple-600" />
+                </div>
+                <h3 className="text-slate-700 font-bold text-lg mb-3">Path Prediction</h3>
+                <p className="text-slate-600 text-sm leading-relaxed">AI forecasts precise tornado paths, touchdown locations, and intensity levels</p>
               </CardContent>
             </Card>
           </div>
