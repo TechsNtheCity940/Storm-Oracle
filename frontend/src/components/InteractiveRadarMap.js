@@ -838,7 +838,7 @@ const InteractiveRadarMap = ({
         </CardHeader>
         
         {!controlsCollapsed && (
-          <CardContent className="space-y-5 overflow-y-auto overflow-x-hidden max-h-full pr-2 custom-scrollbar">
+          <CardContent className="space-y-5 overflow-y-auto overflow-x-hidden flex-1 pr-2 custom-scrollbar" style={{maxHeight: 'calc(100vh - 12rem)'}}>
             <div className="space-y-5">
               {/* Data Type Selection with Definition */}
               <div className="space-y-3">
