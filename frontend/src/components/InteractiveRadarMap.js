@@ -497,13 +497,15 @@ const InteractiveRadarMap = ({
       ref={mapContainerRef}
       className={`relative w-full h-full ${isFullscreen ? 'fixed inset-0 z-[9999] bg-black' : ''}`}
     >
-      {/* Scrollable Collapsible Radar Controls */}
-      <Card className={`absolute top-4 left-4 z-[1000] bg-slate-800/95 border-slate-700 backdrop-blur-sm transition-all duration-300 ${controlsCollapsed ? 'w-12' : 'w-80'} ${isFullscreen ? 'max-h-[calc(100vh-2rem)]' : 'max-h-[calc(100vh-8rem)]'}`}>
+      {/* Modern Collapsible Radar Controls */}
+      <Card className={`absolute top-4 left-4 z-[1000] bg-white/90 border-blue-100 backdrop-blur-md shadow-xl transition-all duration-300 rounded-2xl ${controlsCollapsed ? 'w-14' : 'w-80'} ${isFullscreen ? 'max-h-[calc(100vh-2rem)]' : 'max-h-[calc(100vh-8rem)]'}`}>
         <CardHeader className="pb-3 flex-shrink-0">
-          <CardTitle className="text-white text-sm flex items-center justify-between">
+          <CardTitle className="text-slate-700 text-sm flex items-center justify-between font-semibold">
             {!controlsCollapsed && (
               <span className="flex items-center">
-                <MapPin className="h-4 w-4 mr-2" />
+                <div className="p-1.5 bg-gradient-to-br from-blue-100 to-sky-100 rounded-lg mr-2">
+                  <MapPin className="h-4 w-4 text-blue-600" />
+                </div>
                 Radar Control Center
               </span>
             )}
@@ -513,7 +515,7 @@ const InteractiveRadarMap = ({
                 size="sm"
                 variant="ghost"
                 onClick={toggleFullscreen}
-                className="text-white hover:bg-slate-700 p-1"
+                className="text-slate-600 hover:bg-blue-50 hover:text-blue-600 p-1.5 rounded-lg transition-all"
                 title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
               >
                 {isFullscreen ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -524,7 +526,7 @@ const InteractiveRadarMap = ({
                 size="sm"
                 variant="ghost"
                 onClick={() => setControlsCollapsed(!controlsCollapsed)}
-                className="text-white hover:bg-slate-700 p-1"
+                className="text-slate-600 hover:bg-blue-50 hover:text-blue-600 p-1.5 rounded-lg transition-all"
                 title={controlsCollapsed ? "Expand Controls" : "Collapse Controls"}
               >
                 {controlsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
