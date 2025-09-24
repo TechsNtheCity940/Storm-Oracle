@@ -448,40 +448,49 @@ function App() {
             </Card>
 
             {/* AI Chat (Premium Feature) */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center justify-between">
+            <Card className="bg-white/80 backdrop-blur-sm border border-blue-100 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-slate-700 flex items-center justify-between text-lg font-semibold">
                   <div className="flex items-center">
-                    <Bot className="h-5 w-5 mr-2" />
+                    <div className="p-2 bg-gradient-to-br from-blue-100 to-sky-100 rounded-xl mr-3">
+                      <Bot className="h-5 w-5 text-blue-600" />
+                    </div>
                     AI Weather Assistant
                   </div>
                   {isPremiumFeature("ai_chatbot") && (
-                    <Badge variant="outline" className="text-orange-400 border-orange-400">Premium</Badge>
+                    <Badge className="bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-full px-3 py-1 shadow-lg">
+                      Premium
+                    </Badge>
                   )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex space-x-2">
+                <div className="flex space-x-3">
                   <Input
                     placeholder={isPremiumFeature("ai_chatbot") ? "Upgrade to Premium to chat with AI..." : "Ask about weather conditions..."}
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
                     disabled={isPremiumFeature("ai_chatbot") || loading}
-                    className="bg-slate-700 border-slate-600 text-white placeholder-slate-400"
+                    className="bg-white border-blue-200 text-slate-700 placeholder-slate-400 rounded-xl hover:border-blue-300 focus:ring-2 focus:ring-blue-200 transition-all"
                     onKeyPress={(e) => e.key === 'Enter' && handleChatSubmit()}
                   />
                   <Button 
                     onClick={handleChatSubmit} 
                     disabled={isPremiumFeature("ai_chatbot") || loading || !chatMessage.trim()}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-gradient-to-r from-blue-500 to-sky-600 hover:from-blue-600 hover:to-sky-700 text-white rounded-xl px-4 shadow-lg hover:shadow-xl transition-all duration-300"
                   >
                     <Bot className="h-4 w-4" />
                   </Button>
                 </div>
                 
                 {chatResponse && (
-                  <div className="p-4 bg-slate-700 rounded-lg">
-                    <p className="text-white text-sm">{chatResponse}</p>
+                  <div className="p-5 bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-100 rounded-2xl">
+                    <div className="flex items-start space-x-3">
+                      <div className="p-2 bg-blue-100 rounded-xl">
+                        <Bot className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <p className="text-slate-700 text-sm leading-relaxed flex-1">{chatResponse}</p>
+                    </div>
                   </div>
                 )}
               </CardContent>
