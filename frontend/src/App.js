@@ -197,15 +197,38 @@ function App() {
 
     setLoading(true);
     try {
+      // Enhance chat request with current weather context
+      const weatherContext = {
+        selectedStation: selectedStation ? {
+          id: selectedStation.station_id,
+          name: selectedStation.name,
+          location: `${selectedStation.name}, ${selectedStation.state}`,
+          coordinates: {
+            lat: selectedStation.latitude,
+            lon: selectedStation.longitude
+          }
+        } : null,
+        activeStorms: stormCells.length > 0 ? stormCells.map(storm => ({
+          location: storm.stationName,
+          tornadoProbability: storm.tornadoProbability,
+          alertLevel: storm.alertLevel,
+          efScale: storm.predictedEFScale
+        })) : null,
+        monitoringActive: monitoringStatus.system_status?.monitoring_active || false,
+        radarType: radarType
+      };
+
       const response = await axios.post(`${API}/chat`, null, {
         params: {
           message: chatMessage,
           user_id: "user123",
+          context: JSON.stringify(weatherContext)
         }
       });
+      
       setChatResponse(response.data.response);
       setChatMessage("");
-      toast.success("AI response received");
+      toast.success("🤖 AI Weather Assistant responded");
     } catch (error) {
       console.error("Error chatting with AI:", error);
       toast.error("Failed to get AI response");
