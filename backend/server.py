@@ -628,40 +628,78 @@ async def get_tornado_alerts(limit: int = 50):
     return [TornadoAlert(**alert) for alert in alerts]
 
 @api_router.post("/chat")
-async def chat_with_ai(message: str, user_id: str = "user", context: Optional[Dict[str, Any]] = None):
-    """Chat with AI about weather conditions"""
+async def chat_with_ai(message: str, user_id: str = "user", context: str = None):
+    """🤖 Enhanced AI Weather Assistant - Real-time weather data integration"""
     try:
-        # Create context-aware prompt
+        # Parse context if provided
+        weather_context = None
+        if context:
+            try:
+                weather_context = json.loads(context)
+            except json.JSONDecodeError:
+                logger.warning("Invalid context JSON, proceeding with string context")
+                weather_context = {"raw_context": context}
+        
+        # Create enhanced context-aware prompt
+        context_info = ""
+        if weather_context:
+            if weather_context.get('selectedStation'):
+                station = weather_context['selectedStation']
+                context_info += f"\n🏭 Currently monitoring: {station['name']} (ID: {station['id']})"
+                context_info += f"\n📍 Location: {station['location']}"
+                context_info += f"\n🗺️ Coordinates: {station['coordinates']['lat']:.4f}°, {station['coordinates']['lon']:.4f}°"
+            
+            if weather_context.get('activeStorms'):
+                storms = weather_context['activeStorms']
+                context_info += f"\n⛈️ ACTIVE STORM ALERTS: {len(storms)} storms detected"
+                for storm in storms[:3]:  # Limit to top 3 storms
+                    context_info += f"\n  • {storm['location']}: {storm['tornadoProbability']}% tornado risk ({storm['alertLevel']})"
+            
+            context_info += f"\n🌊 Radar Type: {weather_context.get('radarType', 'reflectivity')}"
+            context_info += f"\n🎯 Auto-monitoring: {'Active' if weather_context.get('monitoringActive') else 'Manual mode'}"
+        
         chat_prompt = f"""
-        User question: {message}
+        You are the Storm Oracle AI Weather Assistant with access to real-time NEXRAD radar data and tornado prediction models.
         
-        Context: {context if context else 'General weather inquiry'}
+        🌍 REAL-TIME CONTEXT:{context_info if context_info else ' General weather inquiry - no specific location selected'}
         
-        Provide helpful weather and tornado safety information. If asked about current conditions, 
-        explain that real-time data analysis is available through the tornado analysis feature.
+        👤 USER QUESTION: {message}
+        
+        🎯 INSTRUCTIONS:
+        - Provide detailed, accurate weather information and tornado safety advice
+        - Use the real-time context when answering location-specific questions
+        - If active storms are present, prioritize safety information
+        - For tornado risks, provide specific EF-scale information and safety protocols
+        - Reference current radar data and monitoring status when relevant
+        - If no specific location is provided, offer to analyze any US location
+        - Always include practical safety recommendations for severe weather
+        
+        Respond as an expert meteorologist with access to cutting-edge tornado prediction technology.
         """
         
         ai_message = UserMessage(text=chat_prompt)
         response = await claude_chat.send_message(ai_message)
         
-        # Store chat history
+        # Store enhanced chat history
         chat_record = ChatMessage(
             user_id=user_id,
             message=message,
             response=response,
-            context=context
+            context=weather_context or {"message": "No weather context provided"}
         )
         chat_dict = chat_record.dict()
         await db.chat_messages.insert_one(chat_dict)
         
         return {
             "response": response,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "context_used": weather_context is not None,
+            "station_monitored": weather_context.get('selectedStation', {}).get('name') if weather_context else None
         }
         
     except Exception as e:
-        logger.error(f"Error in chat: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+        logger.error(f"Error in enhanced chat: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI Weather Assistant failed: {str(e)}")
 
 @api_router.get("/active-storms")
 async def get_active_storms():
