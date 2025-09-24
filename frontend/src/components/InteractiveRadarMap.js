@@ -350,9 +350,9 @@ const InteractiveRadarMap = ({
         
       } else {
         console.error("No RainViewer data available");
-        // Create fallback frames
+        // Create fallback frames with 2-minute intervals
         const fallbackFrames = Array.from({ length: Math.min(frames, 10) }, (_, i) => ({
-          timestamp: Date.now() - (i * 10 * 60 * 1000),
+          timestamp: Date.now() - (i * 2 * 60 * 1000), // 2-minute intervals
           frameIndex: i,
           imageUrl: `https://api.rainviewer.com/public/maps/radar/256/1/${Date.now()}/2/1_1.png`,
           bounds: {
