@@ -281,7 +281,7 @@ const RadarOverlay = ({ radarFrames, currentFrame, opacity, colorPalette, dataTy
   return null;
 };
 
-const StormCellMarkers = ({ stormCells, onStormClick }) => {
+const StormCellMarkers = ({ stormCells, onStormClick, selectedStation, radarFrames }) => {
   const map = useMap();
 
   useEffect(() => {
