@@ -818,14 +818,22 @@ const InteractiveRadarMap = ({
         </Card>
       )}
 
-      {/* Map Status */}
-      <div className="absolute bottom-4 left-4 z-[1000] bg-slate-800/95 backdrop-blur-sm rounded px-3 py-2">
-        <div className="text-white text-xs space-y-1">
-          <div>Center: {mapCenter[0].toFixed(4)}°, {mapCenter[1].toFixed(4)}°</div>
-          <div>Zoom: {mapZoom}</div>
+      {/* Modern Map Status */}
+      <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 backdrop-blur-md shadow-lg rounded-2xl px-4 py-3 border border-blue-100">
+        <div className="text-slate-700 text-xs space-y-2 font-medium">
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-            <span>{isLoading ? 'Loading radar...' : 'Radar data live'}</span>
+            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg">📍</span>
+            <span>Center: {mapCenter[0].toFixed(4)}°, {mapCenter[1].toFixed(4)}°</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg">🔍</span>
+            <span>Zoom: {mapZoom}</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className={`w-3 h-3 rounded-full shadow-md ${isLoading ? 'bg-amber-400 animate-pulse' : 'bg-green-400'}`}></div>
+            <span className={isLoading ? 'text-amber-600' : 'text-green-600'}>
+              {isLoading ? 'Loading radar...' : 'Radar data live'}
+            </span>
           </div>
         </div>
       </div>
