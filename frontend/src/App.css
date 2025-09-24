@@ -178,10 +178,21 @@ body {
   }
 }
 
-/* Premium badge glow */
+/* Modern Premium badge glow */
 .premium-badge {
-  background: linear-gradient(45deg, #3b82f6, #8b5cf6);
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6, #06b6d4);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  animation: premium-glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes premium-glow {
+  0% {
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+  }
+  100% {
+    box-shadow: 0 12px 35px rgba(59, 130, 246, 0.5);
+  }
 }
 
 /* Interactive elements */
