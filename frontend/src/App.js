@@ -413,16 +413,21 @@ function App() {
             </Card>
 
             {/* Interactive Radar Map */}
-            <Card className="bg-slate-800 border-slate-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center justify-between">
-                  <span>🌪️ Live Interactive Radar - Storm Oracle</span>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="text-green-400 border-green-400">
+            <Card className="bg-white/80 backdrop-blur-sm border border-blue-100 rounded-2xl shadow-xl overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-sky-50 border-b border-blue-100 pb-4">
+                <CardTitle className="text-slate-700 flex items-center justify-between text-xl font-bold">
+                  <span className="flex items-center">
+                    <div className="p-2 bg-gradient-to-br from-blue-100 to-sky-100 rounded-xl mr-3">
+                      🌪️
+                    </div>
+                    Live Interactive Radar - Storm Oracle
+                  </span>
+                  <div className="flex items-center space-x-3">
+                    <Badge className="bg-gradient-to-r from-green-400 to-emerald-500 text-white rounded-full px-3 py-1 shadow-lg">
                       {radarStations.length} NEXRAD Stations
                     </Badge>
                     {monitoringStatus.active_storm_summary && (
-                      <Badge variant="destructive">
+                      <Badge className="bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-full px-3 py-1 shadow-lg animate-pulse">
                         {monitoringStatus.active_storm_summary.total_storms} Active Threats
                       </Badge>
                     )}
@@ -430,7 +435,7 @@ function App() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="h-[600px] relative">
+                <div className="h-[600px] relative bg-gradient-to-br from-blue-50 to-sky-100">
                   <InteractiveRadarMap
                     radarStations={radarStations}
                     selectedStation={selectedStation}
