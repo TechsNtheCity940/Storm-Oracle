@@ -280,90 +280,98 @@ const InteractiveRadarMap = ({
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
 
-  // Enhanced radar frames loading with real data
+  // Load real radar data using RainViewer API
   const loadRadarFrames = useCallback(async (stationId = null, frames = frameCount) => {
     setIsLoading(true);
+    console.log("Loading radar frames...", { stationId, frames, dataType });
+    
     try {
-      let radarFrames = [];
+      // Get real-time radar data from RainViewer API
+      const rainViewerResponse = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+      const rainViewerData = await rainViewerResponse.json();
       
-      if (stationId && selectedStation) {
-        // Load station-specific radar data
-        for (let i = 0; i < frames; i++) {
-          const timeOffset = i * 10 * 60 * 1000; // 10 minutes apart
-          const timestamp = Date.now() - timeOffset;
+      if (rainViewerData && rainViewerData.radar && rainViewerData.radar.past) {
+        console.log("RainViewer data loaded:", rainViewerData.radar.past.length, "radar frames");
+        
+        // Use RainViewer's real radar data
+        const radarFrames = rainViewerData.radar.past.slice(-frames).map((frame, index) => {
+          const timestamp = frame.time * 1000; // Convert to milliseconds
+          const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${frame.path}/512/{z}/{x}/{y}/2/1_1.png`;
           
-          try {
-            // Try to get real radar data from our API
-            const response = await axios.get(`${API}/radar-data/${stationId}?data_type=${dataType}&timestamp=${timestamp}`);
-            
-            radarFrames.push({
-              timestamp,
-              frameIndex: frames - i - 1,
-              imageUrl: response.data.radar_url,
-              bounds: {
-                north: selectedStation.latitude + 3,
-                south: selectedStation.latitude - 3,
-                east: selectedStation.longitude + 3,
-                west: selectedStation.longitude - 3
-              },
-              stationData: response.data
-            });
-          } catch (error) {
-            // Fallback to constructed URLs if API fails
-            const radarTypeCode = dataType === 'base_velocity' ? '1' : '0';
-            const imageUrl = `https://radar.weather.gov/ridge/lite/${stationId.toLowerCase()}_${radarTypeCode}.gif?${timestamp}`;
-            
-            radarFrames.push({
-              timestamp,
-              frameIndex: frames - i - 1,
-              imageUrl,
-              bounds: {
-                north: selectedStation.latitude + 3,
-                south: selectedStation.latitude - 3,
-                east: selectedStation.longitude + 3,
-                west: selectedStation.longitude - 3
-              }
-            });
-          }
-        }
+          return {
+            timestamp,
+            frameIndex: index,
+            imageUrl: tileUrl,
+            rainViewerPath: frame.path,
+            bounds: stationId && selectedStation ? {
+              north: selectedStation.latitude + 3,
+              south: selectedStation.latitude - 3,
+              east: selectedStation.longitude + 3,
+              west: selectedStation.longitude - 3
+            } : {
+              north: 50,
+              south: 20,
+              east: -60,
+              west: -130
+            },
+            isRealData: true
+          };
+        });
+        
+        console.log("Processed radar frames:", radarFrames.length);
+        setRadarFrames(radarFrames);
+        setCurrentFrame(radarFrames.length - 1); // Start with most recent
+        setRealRadarData({
+          api_source: "RainViewer Real-Time Radar",
+          refresh_interval: 300,
+          coordinates: stationId && selectedStation ? {
+            lat: selectedStation.latitude,
+            lon: selectedStation.longitude
+          } : { lat: 39.8283, lon: -98.5795 }
+        });
+        
       } else {
-        // Load national radar data
-        try {
-          const response = await axios.get(`${API}/radar-frames/national?frames=${frames}&data_type=${dataType}`);
-          if (response.data && response.data.frames) {
-            radarFrames = response.data.frames;
-          } else {
-            throw new Error('No frames in response');
-          }
-        } catch (error) {
-          // Generate national radar frames with real URLs
-          for (let i = 0; i < frames; i++) {
-            const timeOffset = i * 10 * 60 * 1000;
-            const timestamp = Date.now() - timeOffset;
-            
-            radarFrames.push({
-              timestamp,
-              frameIndex: frames - i - 1,
-              imageUrl: `https://radar.weather.gov/ridge/RadarImg/N0R/USA_0.gif?${timestamp}`,
-              bounds: {
-                north: 50,
-                south: 20,
-                east: -60,
-                west: -130
-              }
-            });
-          }
-        }
+        console.error("No RainViewer data available");
+        // Create fallback frames
+        const fallbackFrames = Array.from({ length: Math.min(frames, 10) }, (_, i) => ({
+          timestamp: Date.now() - (i * 10 * 60 * 1000),
+          frameIndex: i,
+          imageUrl: `https://api.rainviewer.com/public/maps/radar/256/1/${Date.now()}/2/1_1.png`,
+          bounds: {
+            north: 50,
+            south: 20,
+            east: -60,
+            west: -130
+          },
+          isRealData: false
+        }));
+        
+        setRadarFrames(fallbackFrames.reverse());
+        setCurrentFrame(fallbackFrames.length - 1);
       }
-      
-      setRadarFrames(radarFrames.reverse()); // Oldest to newest
-      setCurrentFrame(radarFrames.length - 1); // Start with most recent
       
     } catch (error) {
       console.error('Error loading radar frames:', error);
-      // Create minimal fallback
-      setRadarFrames([]);
+      
+      // Emergency fallback - create mock frames that won't cause CORS issues
+      const emergencyFrames = Array.from({ length: 5 }, (_, i) => ({
+        timestamp: Date.now() - (i * 10 * 60 * 1000),
+        frameIndex: i,
+        imageUrl: '', // Empty URL to avoid CORS issues
+        bounds: {
+          north: 50,
+          south: 20,
+          east: -60,
+          west: -130
+        },
+        isRealData: false,
+        error: true
+      }));
+      
+      setRadarFrames(emergencyFrames.reverse());
+      setCurrentFrame(emergencyFrames.length - 1);
     }
+    
     setIsLoading(false);
   }, [frameCount, selectedStation, dataType]);
 
