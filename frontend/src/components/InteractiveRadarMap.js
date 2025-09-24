@@ -192,9 +192,9 @@ const StormCellMarkers = ({ stormCells, onStormClick }) => {
   const map = useMap();
 
   useEffect(() => {
-    // Clear existing storm markers
+    // Clear existing storm markers and weather markers
     map.eachLayer((layer) => {
-      if (layer.options && layer.options.isStormMarker) {
+      if (layer.options && (layer.options.isStormMarker || layer.options.isWeatherMarker)) {
         map.removeLayer(layer);
       }
     });
@@ -251,6 +251,129 @@ const StormCellMarkers = ({ stormCells, onStormClick }) => {
 
       marker.on('click', () => onStormClick(storm));
     });
+
+    // Add simulated weather markers for demonstration
+    const weatherMarkers = [
+      // Lightning markers
+      { type: 'lightning', lat: 32.7767, lng: -96.7970, intensity: 'high' }, // Dallas
+      { type: 'lightning', lat: 29.7604, lng: -95.3698, intensity: 'medium' }, // Houston
+      { type: 'lightning', lat: 35.4676, lng: -97.5164, intensity: 'low' }, // Oklahoma City
+      
+      // Hail markers  
+      { type: 'hail', lat: 33.7490, lng: -84.3880, size: 'large' }, // Atlanta
+      { type: 'hail', lat: 41.8781, lng: -87.6298, size: 'small' }, // Chicago
+      
+      // Rotation markers (mesocyclone signatures)
+      { type: 'rotation', lat: 36.1627, lng: -95.9928, strength: 'strong' }, // Tulsa area
+      { type: 'rotation', lat: 32.2540, lng: -101.8313, strength: 'moderate' }, // Lubbock area
+    ];
+
+    weatherMarkers.forEach((weather, index) => {
+      let markerHtml, markerColor, markerSize;
+
+      switch (weather.type) {
+        case 'lightning':
+          markerColor = weather.intensity === 'high' ? '#fbbf24' : weather.intensity === 'medium' ? '#f59e0b' : '#d97706';
+          markerHtml = `
+            <div class="weather-marker lightning-marker" style="
+              background: ${markerColor};
+              border: 2px solid #ffffff;
+              border-radius: 50%;
+              width: 16px;
+              height: 16px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 2px 4px rgba(251, 191, 36, 0.5);
+              animation: lightning-flash 1.5s infinite;
+            ">⚡</div>`;
+          break;
+          
+        case 'hail':
+          markerColor = weather.size === 'large' ? '#e11d48' : '#f43f5e';
+          markerSize = weather.size === 'large' ? '18px' : '14px';
+          markerHtml = `
+            <div class="weather-marker hail-marker" style="
+              background: ${markerColor};
+              border: 2px solid #ffffff;
+              border-radius: 50%;
+              width: ${markerSize};
+              height: ${markerSize};
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 2px 4px rgba(225, 29, 72, 0.5);
+              font-size: 8px;
+            ">🧊</div>`;
+          break;
+          
+        case 'rotation':
+          markerColor = weather.strength === 'strong' ? '#dc2626' : '#ef4444';
+          markerHtml = `
+            <div class="weather-marker rotation-marker" style="
+              background: ${markerColor};
+              border: 3px solid #ffffff;
+              border-radius: 50%;
+              width: 24px;
+              height: 24px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 3px 6px rgba(220, 38, 38, 0.6);
+              animation: rotation-spin 2s linear infinite;
+              font-size: 12px;
+            ">🌀</div>`;
+          break;
+      }
+
+      const weatherIcon = L.divIcon({
+        className: `weather-marker-${weather.type}`,
+        html: markerHtml,
+        iconSize: weather.type === 'rotation' ? [24, 24] : [16, 16],
+        iconAnchor: weather.type === 'rotation' ? [12, 12] : [8, 8]
+      });
+
+      const weatherMarker = L.marker([weather.lat, weather.lng], {
+        icon: weatherIcon,
+        isWeatherMarker: true
+      }).addTo(map);
+
+      // Custom popups for each weather type
+      let popupContent = '';
+      switch (weather.type) {
+        case 'lightning':
+          popupContent = `
+            <div class="weather-popup">
+              <h4 style="margin: 0 0 6px 0; color: #1f2937;">⚡ Lightning Activity</h4>
+              <p style="margin: 2px 0; font-size: 12px;"><strong>Intensity:</strong> ${weather.intensity.toUpperCase()}</p>
+              <p style="margin: 2px 0; font-size: 12px;"><strong>Strikes/min:</strong> ${weather.intensity === 'high' ? '15-25' : weather.intensity === 'medium' ? '5-15' : '1-5'}</p>
+              <p style="margin: 2px 0; font-size: 11px; color: #6b7280;">Cloud-to-ground lightning detected</p>
+            </div>`;
+          break;
+        case 'hail':
+          popupContent = `
+            <div class="weather-popup">
+              <h4 style="margin: 0 0 6px 0; color: #1f2937;">🧊 Hail Detection</h4>
+              <p style="margin: 2px 0; font-size: 12px;"><strong>Size:</strong> ${weather.size === 'large' ? 'Quarter to Golf Ball' : 'Pea to Dime'}</p>
+              <p style="margin: 2px 0; font-size: 12px;"><strong>Probability:</strong> ${weather.size === 'large' ? '85%' : '65%'}</p>
+              <p style="margin: 2px 0; font-size: 11px; color: #6b7280;">Based on radar reflectivity patterns</p>
+            </div>`;
+          break;
+        case 'rotation':
+          popupContent = `
+            <div class="weather-popup">
+              <h4 style="margin: 0 0 6px 0; color: #1f2937;">🌀 Mesocyclone Rotation</h4>
+              <p style="margin: 2px 0; font-size: 12px;"><strong>Strength:</strong> ${weather.strength.toUpperCase()}</p>
+              <p style="margin: 2px 0; font-size: 12px;"><strong>Shear:</strong> ${weather.strength === 'strong' ? '40+ m/s' : '25-40 m/s'}</p>
+              <p style="margin: 2px 0; font-size: 12px;"><strong>Tornado Risk:</strong> ${weather.strength === 'strong' ? 'HIGH' : 'MODERATE'}</p>
+              <p style="margin: 2px 0; font-size: 11px; color: #6b7280;">Velocity couplet detected</p>
+            </div>`;
+          break;
+      }
+
+      weatherMarker.bindPopup(popupContent);
+    });
+
   }, [map, stormCells, onStormClick]);
 
   return null;
