@@ -88,8 +88,20 @@ const RadarOverlay = ({ radarFrames, currentFrame, opacity, colorPalette, dataTy
       }
 
       const frame = radarFrames[currentFrame];
-      if (frame && frame.imageUrl) {
-        // Create image overlay with color filter
+      if (frame && frame.rainViewerPath) {
+        // Create RainViewer tile layer for real radar data
+        const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${frame.rainViewerPath}/512/{z}/{x}/{y}/2/1_1.png`;
+        
+        overlayRef.current = L.tileLayer(tileUrl, {
+          opacity: opacity,
+          attribution: 'RainViewer',
+          maxZoom: 18,
+          className: `radar-overlay radar-${dataType}-${colorPalette}`
+        }).addTo(map);
+        
+        console.log("Added RainViewer radar overlay:", frame.rainViewerPath);
+      } else if (frame && frame.imageUrl && !frame.error) {
+        // Fallback to image overlay for other sources
         const imageBounds = [
           [frame.bounds.south, frame.bounds.west],
           [frame.bounds.north, frame.bounds.east]
@@ -103,6 +115,10 @@ const RadarOverlay = ({ radarFrames, currentFrame, opacity, colorPalette, dataTy
           interactive: false,
           className: `radar-overlay ${filterClass}`
         }).addTo(map);
+        
+        console.log("Added image overlay:", frame.imageUrl);
+      } else {
+        console.log("No valid radar data for frame:", currentFrame);
       }
     }
 
