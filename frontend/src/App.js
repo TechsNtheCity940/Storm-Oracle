@@ -144,17 +144,51 @@ function App() {
     try {
       const response = await axios.post(`${API}/tornado-analysis?station_id=${selectedStation.station_id}&data_type=${radarType}`);
       
-      toast.success("AI tornado analysis completed!");
+      // Update analysis results in the UI
+      const analysisData = {
+        type: 'ai_analysis',
+        station: selectedStation,
+        confidence: response.data.confidence || 85,
+        hookEcho: response.data.hook_echo_detected || false,
+        velocityCouplet: response.data.velocity_couplet || false,
+        mesocyclone: response.data.mesocyclone_strength || 'none',
+        tornadoProbability: response.data.tornado_probability || 15,
+        recommendation: response.data.recommendation || 'Continue monitoring',
+        timestamp: new Date().toISOString()
+      };
       
-      // Refresh alerts
-      await loadTornadoAlerts();
+      setAnalysisResults(analysisData);
+      setLastAnalysisTime(new Date().toLocaleTimeString());
       
-      // Show analysis in dialog or update UI
-      console.log("Analysis result:", response.data);
+      // Update storm cells if threats detected
+      if (analysisData.tornadoProbability > 30) {
+        const newStormCell = {
+          stationId: selectedStation.station_id,
+          stationName: selectedStation.name,
+          latitude: selectedStation.latitude,
+          longitude: selectedStation.longitude,
+          tornadoProbability: analysisData.tornadoProbability,
+          alertLevel: analysisData.tornadoProbability > 70 ? 'TORNADO WARNING' : 'TORNADO WATCH',
+          predictedEFScale: Math.min(5, Math.floor(analysisData.tornadoProbability / 20)),
+          touchdownTime: analysisData.tornadoProbability > 50 ? 'Imminent' : '15-30 min'
+        };
+        
+        setStormCells(prev => {
+          const existingIndex = prev.findIndex(s => s.stationId === selectedStation.station_id);
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = newStormCell;
+            return updated;
+          }
+          return [...prev, newStormCell];
+        });
+      }
+      
+      toast.success(`🌪️ Analysis complete: ${analysisData.tornadoProbability}% tornado risk`);
       
     } catch (error) {
-      console.error("Error analyzing tornado risk:", error);
-      toast.error("Failed to analyze tornado risk");
+      console.error("Error analyzing for tornadoes:", error);
+      toast.error("Tornado analysis failed");
     }
     setAnalyzing(false);
   };
