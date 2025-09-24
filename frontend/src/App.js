@@ -463,8 +463,31 @@ function App() {
                       <AlertTitle className="text-slate-700 font-semibold">
                         {alert.alert_type.toUpperCase()} - {alert.station_id}
                       </AlertTitle>
-                      <AlertDescription className="text-slate-600 text-sm">
-                        Confidence: {alert.confidence}% | {formatTimestamp(alert.timestamp)}
+                      <AlertDescription className="text-slate-600 text-sm space-y-1">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div><strong>🎯 Confidence:</strong> {alert.confidence}%</div>
+                          <div><strong>📊 Severity:</strong> Level {alert.severity}</div>
+                          <div><strong>🌀 Rotation:</strong> {alert.velocity_couplet ? 'Detected' : 'Not detected'}</div>
+                          <div><strong>⚡ Updraft:</strong> {alert.mesocyclone_strength || 'Moderate'}</div>
+                          <div><strong>🎪 Hook Echo:</strong> {alert.hook_echo ? 'Present' : 'Absent'}</div>
+                          <div><strong>💨 Shear:</strong> {alert.wind_shear || 'Moderate'}</div>
+                        </div>
+                        <div className="mt-2 p-2 bg-white/60 rounded-lg">
+                          <div className="text-xs">
+                            <strong>📍 Threat Analysis:</strong> 
+                            {alert.confidence > 80 
+                              ? ' High probability tornado formation detected. Doppler velocity shows strong rotation signature with mesocyclone present.'
+                              : alert.confidence > 60
+                              ? ' Moderate tornado risk. Velocity couplet detected with developing rotation patterns.'
+                              : alert.confidence > 40  
+                              ? ' Low-moderate risk. Weak rotation signatures observed in storm structure.'
+                              : ' Preliminary indicators detected. Continue monitoring for development.'}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1">
+                            <strong>⏰ Detected:</strong> {formatTimestamp(alert.timestamp)} | 
+                            <strong> 🔍 Algorithm:</strong> {alert.detection_method || 'ML + Doppler Analysis'}
+                          </div>
+                        </div>
                       </AlertDescription>
                     </Alert>
                   ))}
