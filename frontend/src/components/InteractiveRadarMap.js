@@ -799,8 +799,8 @@ const InteractiveRadarMap = ({
       ref={mapContainerRef}
       className={`relative w-full h-full ${isFullscreen ? 'fixed inset-0 z-[9999] bg-black' : ''}`}
     >
-      {/* Modern Collapsible Radar Controls */}
-      <Card className={`absolute top-4 left-4 z-[1000] bg-white/90 border-blue-100 backdrop-blur-md shadow-xl transition-all duration-300 rounded-2xl ${controlsCollapsed ? 'w-14' : 'w-80'} ${isFullscreen ? 'max-h-[calc(100vh-2rem)]' : 'max-h-[calc(100vh-8rem)]'}`}>
+      {/* Modern Collapsible Radar Controls with Enhanced Scrolling */}
+      <Card className={`absolute top-4 left-4 z-[1000] bg-white/90 border-blue-100 backdrop-blur-md shadow-xl transition-all duration-300 rounded-2xl ${controlsCollapsed ? 'w-14' : 'w-80'} ${isFullscreen ? 'max-h-[calc(100vh-2rem)]' : 'max-h-[calc(100vh-6rem)]'} flex flex-col`}>
         <CardHeader className="pb-3 flex-shrink-0">
           <CardTitle className="text-slate-700 text-sm flex items-center justify-between font-semibold">
             {!controlsCollapsed && (
