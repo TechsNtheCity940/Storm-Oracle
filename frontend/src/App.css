@@ -125,12 +125,12 @@ body {
   box-shadow: 0 20px 40px rgba(59, 130, 246, 0.15);
 }
 
-/* Alert severity colors */
-.severity-1 { color: #22c55e; }
-.severity-2 { color: #eab308; }
-.severity-3 { color: #f97316; }
-.severity-4 { color: #ef4444; }
-.severity-5 { color: #dc2626; }
+/* Modern Alert severity colors with weather theming */
+.severity-1 { color: #10b981; /* Emerald - Safe */ }
+.severity-2 { color: #f59e0b; /* Amber - Watch */ }
+.severity-3 { color: #f97316; /* Orange - Warning */ }
+.severity-4 { color: #ef4444; /* Red - Danger */ }
+.severity-5 { color: #dc2626; /* Dark Red - Extreme */ }
 
 /* Weather map overlay */
 .weather-overlay {
