@@ -17,16 +17,109 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Radar data types configuration
+// Enhanced radar data types with scientific definitions
 const RADAR_DATA_TYPES = {
-  'base_reflectivity': { name: 'Base Reflectivity', defaultColors: 'nexrad_reflectivity' },
-  'hi_res_reflectivity': { name: 'Hi-Res Reflectivity', defaultColors: 'nexrad_reflectivity' },
-  'base_velocity': { name: 'Base Velocity', defaultColors: 'velocity_standard' },
-  'hi_res_velocity': { name: 'Hi-Res Velocity', defaultColors: 'velocity_standard' },
-  'storm_relative_velocity': { name: 'Storm Relative Velocity', defaultColors: 'velocity_storm' },
-  'mrms_reflectivity': { name: 'MRMS Reflectivity', defaultColors: 'mrms_standard' },
-  'composite_reflectivity': { name: 'Composite Reflectivity', defaultColors: 'composite' },
-  'echo_tops': { name: 'Echo Tops', defaultColors: 'echo_tops' }
+  'base_reflectivity': { 
+    name: 'Base Reflectivity', 
+    defaultColors: 'nexrad_reflectivity',
+    definition: 'Measures precipitation intensity and particle size',
+    description: 'Shows the amount of energy returned to the radar from precipitation particles. Higher values (reds/purples) indicate heavier precipitation like heavy rain, hail, or dense snow.',
+    units: 'dBZ (decibels of Z)',
+    interpretation: {
+      green: 'Light precipitation (20-35 dBZ)',
+      yellow: 'Moderate precipitation (35-45 dBZ)', 
+      red: 'Heavy precipitation (45-55 dBZ)',
+      purple: 'Intense precipitation/hail (55+ dBZ)'
+    }
+  },
+  'hi_res_reflectivity': { 
+    name: 'Hi-Res Reflectivity', 
+    defaultColors: 'nexrad_reflectivity',
+    definition: 'Enhanced resolution precipitation intensity measurement',
+    description: 'Super-resolution reflectivity with 0.5° beam width and 250m range resolution, providing finer detail of precipitation cores and storm structure.',
+    units: 'dBZ (decibels of Z)',
+    interpretation: {
+      green: 'Light rain/snow (15-30 dBZ)',
+      yellow: 'Moderate rain (30-45 dBZ)',
+      red: 'Heavy rain/small hail (45-60 dBZ)',
+      purple: 'Large hail/extreme rain (60+ dBZ)'
+    }
+  },
+  'base_velocity': { 
+    name: 'Base Velocity', 
+    defaultColors: 'velocity_standard',
+    definition: 'Measures radial wind movement toward/away from radar',
+    description: 'Doppler velocity shows wind motion directly toward (green) or away (red) from the radar site. Critical for detecting rotation and wind shear in storms.',
+    units: 'knots or m/s',
+    interpretation: {
+      green: 'Wind moving toward radar',
+      red: 'Wind moving away from radar',
+      adjacentColors: 'Strong shear indicates rotation'
+    }
+  },
+  'hi_res_velocity': { 
+    name: 'Hi-Res Velocity', 
+    defaultColors: 'velocity_standard',
+    definition: 'Enhanced resolution Doppler wind measurement',
+    description: 'Super-resolution velocity with improved spatial resolution for detecting tight rotation signatures, microbursts, and wind shear boundaries.',
+    units: 'knots or m/s',
+    interpretation: {
+      green: 'Inbound winds (toward radar)',
+      red: 'Outbound winds (away from radar)', 
+      couplet: 'Red/green couplets = rotation'
+    }
+  },
+  'storm_relative_velocity': { 
+    name: 'Storm Relative Velocity', 
+    defaultColors: 'velocity_storm',
+    definition: 'Wind velocity relative to storm motion',
+    description: 'Removes the storm movement component to reveal internal wind circulation patterns, making mesocyclone rotation and rear flank downdrafts more apparent.',
+    units: 'knots or m/s',
+    interpretation: {
+      purple: 'Strong rotation signatures',
+      green: 'Inflow into storm updraft',
+      red: 'Outflow from storm downdraft'
+    }
+  },
+  'mrms_reflectivity': { 
+    name: 'MRMS Reflectivity', 
+    defaultColors: 'mrms_standard',
+    definition: 'Multi-Radar Multi-Sensor composite reflectivity',
+    description: 'Combines data from multiple radars and sensors to create seamless precipitation maps, filling gaps between individual radar coverage areas.',
+    units: 'dBZ (composite)',
+    interpretation: {
+      blue: 'Light precipitation (5-20 dBZ)',
+      green: 'Light to moderate (20-35 dBZ)',
+      yellow: 'Moderate to heavy (35-50 dBZ)',
+      red: 'Heavy to severe (50+ dBZ)'
+    }
+  },
+  'composite_reflectivity': { 
+    name: 'Composite Reflectivity', 
+    defaultColors: 'composite',
+    definition: 'Maximum reflectivity value through all elevation angles',
+    description: 'Shows the highest reflectivity value found at any altitude above each point, revealing the full vertical extent and intensity of precipitation cores.',
+    units: 'dBZ (maximum)',
+    interpretation: {
+      green: 'Shallow precipitation systems',
+      yellow: 'Moderate depth storms',
+      red: 'Deep convective cells',
+      purple: 'Intense supercells with high tops'
+    }
+  },
+  'echo_tops': { 
+    name: 'Echo Tops', 
+    defaultColors: 'echo_tops',
+    definition: 'Height of precipitation echoes above ground level',
+    description: 'Shows how high precipitation extends vertically in the atmosphere. Taller echoes indicate stronger updrafts and more severe weather potential.',
+    units: 'feet or kilometers AGL',
+    interpretation: {
+      green: 'Low tops: 10,000-20,000 ft (weak storms)',
+      yellow: 'Medium tops: 20,000-35,000 ft (moderate storms)',
+      red: 'High tops: 35,000-50,000 ft (strong storms)', 
+      purple: 'Extreme tops: 50,000+ ft (severe supercells)'
+    }
+  }
 };
 
 // Color palette configurations
