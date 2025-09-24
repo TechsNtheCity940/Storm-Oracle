@@ -132,15 +132,33 @@ body {
 .severity-4 { color: #ef4444; /* Red - Danger */ }
 .severity-5 { color: #dc2626; /* Dark Red - Extreme */ }
 
-/* Weather map overlay */
+/* Modern Weather map overlay */
 .weather-overlay {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(45deg, transparent 40%, rgba(239, 68, 68, 0.1) 50%, transparent 60%);
+  background: linear-gradient(45deg, transparent 40%, rgba(59, 130, 246, 0.1) 50%, transparent 60%);
   pointer-events: none;
+  border-radius: 16px;
+}
+
+/* Modern weather gradients */
+.weather-gradient-calm {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+}
+
+.weather-gradient-alert {
+  background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+}
+
+.weather-gradient-warning {
+  background: linear-gradient(135deg, #fed7d7 0%, #fecaca 100%);
+}
+
+.weather-gradient-danger {
+  background: linear-gradient(135deg, #fca5a5 0%, #f87171 100%);
 }
 
 /* Tornado alert animation */
