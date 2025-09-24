@@ -38,8 +38,17 @@ class RadarDataProcessor:
         self.cache_sec = int(cache_sec)
         self.fs = s3fs.S3FileSystem(anon=True)
 
-    async def process_radar_sequence(self, station_id: str, time_steps: Optional[int]=None,
-                                     spacing_min: Optional[int]=None) -> torch.Tensor:
+    async def process_radar_sequence(
+        self,
+        station_id: str,
+        time_steps: Optional[int]=None,
+        spacing_min: Optional[int]=None,
+        normalize: bool = True
+    ) -> torch.Tensor:
+        """
+        Build (T, 3, H, W) tensor from recent Level-II volumes.
+        If normalize=True: per-frame, per-channel z-score normalization.
+        """
         T = time_steps or self.T
         step = spacing_min or self.spacing_min
         frames: List[torch.Tensor] = []
@@ -48,6 +57,9 @@ class RadarDataProcessor:
             ts = now - timedelta(minutes=step*i)
             frames.append(await self._get_radar_frame(station_id, ts))
         x = torch.stack(frames, dim=0)  # (T, 3, H, W)
+
+        if not normalize:
+            return x.float()
 
         # Per-channel z-score per-frame, then stack (keeps scale stable for ML)
         Tn, C, H, W = x.shape
@@ -166,12 +178,11 @@ class AtmosphericDataProcessor:
     async def get_atmospheric_conditions(self, station_location: Dict[str, float]) -> Dict[str, torch.Tensor]:
         lat = float(station_location["latitude"]); lon = float(station_location["longitude"])
         run = self._choose_recent_run()
-        surf_path, iso_path = await self._ensure_hrrr_files(run)
-
-        # If we failed to download HRRR files, use mock data
-        if surf_path is None or iso_path is None:
+        paths = await self._ensure_hrrr_files(run)
+        if paths is None:
             logger.warning("Using fallback atmospheric data due to HRRR download failure")
             return self._create_mock_atmospheric_data(station_location)
+        surf_path, iso_path = paths
 
         # Try different filter options to handle multiple values issue
         ds_sfc = None
@@ -299,12 +310,40 @@ class AtmosphericDataProcessor:
             "pressure": tens1(psfc_kpa)    # kPa
         }
 
+        # ----- Add composite indices to match 1dataprocessor.py feature set -----
+        try:
+            cape_t = atmo["cape"]                         # (1,1)
+            shear = atmo["wind_shear"]                    # (1,4) -> [s01, s03, s06, sdeep]
+            h_proxy = atmo["helicity"]                    # (1,2) -> [h01, h03]
+
+            # Defensive clamps to avoid negative / zero-div issues
+            cape_pos = torch.clamp(cape_t, min=0.0)
+            s01_t = shear[:, 0:1].clamp(min=0.0)
+            s03_t = shear[:, 1:2].clamp(min=0.0)
+            s06_t = shear[:, 2:1+2].clamp(min=0.0)  # same as shear[:,2:3]
+            h01_t = h_proxy[:, 0:1].clamp(min=0.0)
+            h03_t = h_proxy[:, 1:2].clamp(min=0.0)
+
+            # composite_index ≈ sqrt(CAPE * 0-6km shear) / 100
+            composite_index = torch.sqrt(cape_pos * s06_t + 1e-6) / 100.0
+
+            # supercell_composite ≈ (CAPE/1000) * (0-6 shear / 20) * (0-3 helicity / 100)
+            supercell_composite = (cape_pos / 1000.0) * (s06_t / 20.0) * (h03_t / 100.0)
+
+            # tornado_composite ≈ (CAPE/1500) * (0-1 shear / 12.5) * (0-1 helicity / 150)
+            tornado_composite = (cape_pos / 1500.0) * (s01_t / 12.5) * (h01_t / 150.0)
+
+            atmo["composite_index"] = composite_index
+            atmo["supercell_composite"] = supercell_composite
+            atmo["tornado_composite"] = tornado_composite
+        except Exception as e:
+            logger.warning(f"Composite index computation failed; continuing without composites: {e}")
+
         self._prune_cache()
         return atmo
 
     def _choose_recent_run(self) -> Dict[str, str]:
-        # Use a recent historical date since current date may be in the future
-        # For now, use yesterday's date to ensure data exists
+        # Choose a recent historical run to maximize availability.
         now = datetime.now(timezone.utc)
         yesterday = now - timedelta(days=1)
         ymd = yesterday.strftime("%Y%m%d")
@@ -314,7 +353,7 @@ class AtmosphericDataProcessor:
             return {"ymd": ymd, "hour": hh, "fxx": fxx}
         return {"ymd": ymd, "hour": hh, "fxx": "00"}
 
-    async def _ensure_hrrr_files(self, run: Dict[str,str]) -> Tuple[str,str]:
+    async def _ensure_hrrr_files(self, run: Dict[str,str]) -> Optional[Tuple[str,str]]:
         ymd, hh, fxx = run["ymd"], run["hour"], run["fxx"]
         base = os.path.join(self.cache_root, f"hrrr_{ymd}_t{hh}z_f{fxx}")
         surf_path, iso_path = base + "_sfc.grib2", base + "_prs.grib2"
@@ -326,7 +365,7 @@ class AtmosphericDataProcessor:
                 if ok: run["fxx"] = "01"
             if not ok:
                 logger.warning(f"Failed to download HRRR surface file for {ymd} {hh}z f{fxx}, using mock data")
-                return None, None
+                return None
 
         if not (os.path.exists(iso_path) and os.path.getsize(iso_path) > 10_000):
             ok = await self._download_hrrr_file(ymd, hh, run["fxx"], "prs", iso_path)
@@ -335,7 +374,9 @@ class AtmosphericDataProcessor:
                 if ok: run["fxx"] = "01"
             if not ok:
                 logger.warning(f"Failed to download HRRR files for {ymd} {hh}z f{run['fxx']}, using mock data")
-                return None, None
+                return None
+
+        return surf_path, iso_path
 
     async def _download_hrrr_file(self, ymd: str, hh: str, fxx: str, level: str, out_path: str) -> bool:
         url = f"https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.{ymd}/conus/hrrr.t{hh}z.wrf{level}f{fxx}.grib2"
@@ -404,7 +445,7 @@ class AtmosphericDataProcessor:
     # Simple mock in case of fallback usage
     def _create_mock_atmospheric_data(self, loc: Dict[str,float]) -> Dict[str, torch.Tensor]:
         rng = np.random.default_rng(42)
-        return {
+        mock = {
             "cape": torch.tensor([[float(rng.uniform(200, 2200))]], dtype=torch.float32),
             "wind_shear": torch.tensor([[15., 25., 35., 30.]], dtype=torch.float32),
             "helicity": torch.tensor([[120., 220.]], dtype=torch.float32),
@@ -412,6 +453,16 @@ class AtmosphericDataProcessor:
             "dewpoint": torch.tensor([[20., 12.]], dtype=torch.float32),
             "pressure": torch.tensor([[100.]], dtype=torch.float32),
         }
+        # Also include composites in mock to keep feature parity
+        cape = mock["cape"]
+        s01 = mock["wind_shear"][:,0:1]
+        s06 = mock["wind_shear"][:,2:3]
+        h01 = mock["helicity"][:,0:1]
+        h03 = mock["helicity"][:,1:2]
+        mock["composite_index"]     = torch.sqrt(torch.clamp(cape, min=0.0) * torch.clamp(s06, min=0.0) + 1e-6) / 100.0
+        mock["supercell_composite"] = (torch.clamp(cape, min=0.0)/1000.0) * (torch.clamp(s06, min=0.0)/20.0) * (torch.clamp(h03, min=0.0)/100.0)
+        mock["tornado_composite"]   = (torch.clamp(cape, min=0.0)/1500.0) * (torch.clamp(s01, min=0.0)/12.5) * (torch.clamp(h01, min=0.0)/150.0)
+        return mock
 
 # -----------------------------
 # ML pipeline glue
@@ -425,7 +476,9 @@ class MLDataPipeline:
 
     async def prepare_prediction_data(self, station_id: str, station_location: Dict[str, float]) -> Dict[str, Any]:
         try:
-            radar_sequence = await self.radar_processor.process_radar_sequence(station_id, time_steps=6, spacing_min=10)  # (6,3,256,256)
+            radar_sequence = await self.radar_processor.process_radar_sequence(
+                station_id, time_steps=6, spacing_min=10, normalize=True
+            )  # (6,3,256,256)
             atmospheric_data = await self.atmospheric_processor.get_atmospheric_conditions(station_location)
 
             location_context = {
@@ -447,7 +500,7 @@ class MLDataPipeline:
 
             return {
                 "radar_sequence": radar_sequence,                  # (T,C,H,W)
-                "atmospheric_data": atmospheric_data,              # dict of tensors
+                "atmospheric_data": atmospheric_data,              # dict of tensors (now includes composites)
                 "location_context": location_context,
                 "temporal_context": temporal_context,
                 "data_quality": self._assess_data_quality(radar_sequence, atmospheric_data),
