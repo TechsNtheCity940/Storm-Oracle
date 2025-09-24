@@ -1452,6 +1452,8 @@ const InteractiveRadarMap = ({
         <StormCellMarkers 
           stormCells={stormCells}
           onStormClick={onStormClick}
+          selectedStation={selectedStation}
+          radarFrames={radarFrames}
         />
         
         <RadarStationMarkers 
