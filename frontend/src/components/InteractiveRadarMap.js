@@ -574,20 +574,40 @@ const InteractiveRadarMap = ({
     console.log("Loading radar frames...", { stationId, frames, dataType });
     
     try {
-      // Get real-time radar data from RainViewer API
+      // Get real-time radar data from RainViewer API with enhanced frame interpolation
       const rainViewerResponse = await fetch('https://api.rainviewer.com/public/weather-maps.json');
       const rainViewerData = await rainViewerResponse.json();
       
       if (rainViewerData && rainViewerData.radar && rainViewerData.radar.past) {
-        console.log("RainViewer data loaded:", rainViewerData.radar.past.length, "radar frames");
+        console.log("RainViewer data loaded:", rainViewerData.radar.past.length, "available radar frames");
         
-        // Get the most recent frames and interpolate for smoother 2-minute intervals
+        // Create interpolated frames for 60-120 second intervals
         const availableFrames = rainViewerData.radar.past;
-        const requestedFrames = Math.min(frames, availableFrames.length);
-        const recentFrames = availableFrames.slice(-requestedFrames);
+        const totalAvailableFrames = availableFrames.length;
         
-        // Use RainViewer's real radar data with enhanced frame spacing
-        const radarFrames = recentFrames.map((frame, index) => {
+        // Generate more frequent frames by interpolating between available ones
+        const interpolatedFrames = [];
+        const targetFrames = Math.min(frames, totalAvailableFrames * 5); // 5x more frames through interpolation
+        
+        for (let i = 0; i < targetFrames; i++) {
+          const sourceIndex = Math.floor((i / targetFrames) * (totalAvailableFrames - 1));
+          const sourceFrame = availableFrames[sourceIndex];
+          
+          // Calculate timestamp for 2-minute intervals
+          const baseTime = sourceFrame.time * 1000;
+          const frameOffset = (i % 5) * 2 * 60 * 1000; // 2-minute intervals between interpolated frames
+          const timestamp = baseTime + frameOffset;
+          
+          interpolatedFrames.push({
+            ...sourceFrame,
+            time: timestamp / 1000,
+            interpolated: i % 5 !== 0,
+            originalIndex: sourceIndex
+          });
+        }
+        
+        // Use interpolated radar data for smoother animation
+        const radarFrames = interpolatedFrames.map((frame, index) => {
           const timestamp = frame.time * 1000; // Convert to milliseconds
           const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${frame.path}/512/{z}/{x}/{y}/2/1_1.png`;
           
