@@ -466,8 +466,7 @@ const InteractiveRadarMap = ({
     };
 
     window.selectRadarStation = (stationId) => {
-      const station = radarStations.find(s => s.station_id === stationId);
-      if (station) onStationSelect(station);
+      onStationSelect(stationId);
     };
 
     return () => {
