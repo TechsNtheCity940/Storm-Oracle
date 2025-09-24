@@ -695,16 +695,18 @@ const InteractiveRadarMap = ({
                 </div>
               )}
 
-              {/* Advanced Settings Toggle */}
+              {/* Modern Advanced Settings Toggle */}
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-                className="w-full border-slate-600 text-white hover:bg-slate-700"
+                className="w-full border-blue-200 text-slate-700 hover:bg-blue-50 hover:border-blue-300 rounded-xl transition-all"
               >
-                <Settings className="h-3 w-3 mr-2" />
+                <div className="p-1 bg-gradient-to-br from-blue-100 to-sky-100 rounded-lg mr-2">
+                  <Settings className="h-3 w-3 text-blue-600" />
+                </div>
                 Advanced Settings
-                <ChevronRight className={`h-3 w-3 ml-auto transition-transform ${showAdvancedSettings ? 'rotate-90' : ''}`} />
+                <ChevronRight className={`h-3 w-3 ml-auto transition-transform text-blue-600 ${showAdvancedSettings ? 'rotate-90' : ''}`} />
               </Button>
 
               {/* Advanced Settings Panel */}
