@@ -47,13 +47,55 @@ function App() {
     const stormInterval = setInterval(loadActiveStorms, 120000);
     const statusInterval = setInterval(loadMonitoringStatus, 60000);
     
-    // Auto-analysis for selected station (if monitoring is active)
-    const autoAnalysisInterval = setInterval(() => {
-      if (selectedStation && monitoringStatus.system_status?.monitoring_active && !analyzing) {
-        console.log("🔄 Running automated analysis for", selectedStation.name);
-        analyzeForTornadoes();
+    // Enhanced auto-monitoring: Analyze all stations and active storms
+    const autoAnalysisInterval = setInterval(async () => {
+      if (monitoringStatus.system_status?.monitoring_active && !analyzing) {
+        console.log("🔄 Running automated multi-station storm monitoring...");
+        
+        // Prioritize analysis based on storm activity
+        if (stormCells.length > 0) {
+          // Focus on active storms first
+          console.log(`📊 Monitoring ${stormCells.length} active storm cells`);
+          
+          // Run analysis on the highest risk storm
+          const highestRiskStorm = stormCells.reduce((max, storm) => 
+            storm.tornadoProbability > (max.tornadoProbability || 0) ? storm : max, {});
+          
+          if (highestRiskStorm.stationId) {
+            const stormStation = radarStations.find(s => s.station_id === highestRiskStorm.stationId);
+            if (stormStation) {
+              console.log(`🌪️ Auto-analyzing high-risk storm at ${stormStation.name}`);
+              // Simulate continued monitoring without UI disruption
+              try {
+                await axios.post(`${API}/tornado-analysis?station_id=${stormStation.station_id}&data_type=base_velocity&auto_mode=true`);
+              } catch (error) {
+                console.log("Auto-analysis error (continuing monitoring):", error.message);
+              }
+            }
+          }
+        } else if (selectedStation) {
+          // Monitor selected station when no active storms
+          console.log("🔄 Monitoring selected station:", selectedStation.name);
+          analyzeForTornadoes();
+        } else if (radarStations.length > 0) {
+          // Background monitoring of tornado-prone areas
+          const tornadoAlleyStations = radarStations.filter(station => 
+            ['TX', 'OK', 'KS', 'NE', 'AR'].includes(station.state)
+          );
+          
+          if (tornadoAlleyStations.length > 0) {
+            const randomStation = tornadoAlleyStations[Math.floor(Math.random() * tornadoAlleyStations.length)];
+            console.log("🌪️ Background monitoring Tornado Alley:", randomStation.name);
+            
+            try {
+              await axios.post(`${API}/tornado-analysis?station_id=${randomStation.station_id}&data_type=composite_reflectivity&auto_mode=true`);
+            } catch (error) {
+              console.log("Background monitoring continues...");
+            }
+          }
+        }
       }
-    }, 120000); // Every 2 minutes
+    }, 90000); // Every 90 seconds for comprehensive monitoring
 
     return () => {
       clearInterval(stormInterval);
