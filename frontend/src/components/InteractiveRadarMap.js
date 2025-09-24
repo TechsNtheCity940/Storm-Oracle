@@ -309,8 +309,13 @@ const InteractiveRadarMap = ({
       if (rainViewerData && rainViewerData.radar && rainViewerData.radar.past) {
         console.log("RainViewer data loaded:", rainViewerData.radar.past.length, "radar frames");
         
+        // Get the most recent frames and interpolate for smoother 2-minute intervals
+        const availableFrames = rainViewerData.radar.past;
+        const requestedFrames = Math.min(frames, availableFrames.length);
+        const recentFrames = availableFrames.slice(-requestedFrames);
+        
         // Use RainViewer's real radar data with enhanced frame spacing
-        const radarFrames = rainViewerData.radar.past.slice(-frames).map((frame, index) => {
+        const radarFrames = recentFrames.map((frame, index) => {
           const timestamp = frame.time * 1000; // Convert to milliseconds
           const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${frame.path}/512/{z}/{x}/{y}/2/1_1.png`;
           
