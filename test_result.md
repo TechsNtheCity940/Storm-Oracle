@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Test Storm Oracle backend functionality to ensure all APIs are working properly after the UI modernization"
+user_problem_statement: "Test Storm Oracle frontend functionality after UI modernization to identify and troubleshoot critical issues: Tower Selection Error, Radar Images Not Displaying, and AI Chatbot Real-time Weather functionality"
 
 backend:
   - task: "Radar Station Loading API"
@@ -214,17 +214,53 @@ backend:
           comment: "✅ /api/chat endpoint working excellently. Claude Sonnet AI provides detailed weather and tornado safety information. Chat history stored in MongoDB. Contextual responses about weather conditions and safety recommendations."
 
 frontend:
-  - task: "Frontend Integration Testing"
+  - task: "Radar Station Selection Dropdown"
     implemented: true
     working: "NA"
     file: "/app/frontend/src/App.js"
     stuck_count: 0
-    priority: "low"
-    needs_retesting: false
+    priority: "high"
+    needs_retesting: true
     status_history:
         - working: "NA"
-          agent: "testing"
-          comment: "Frontend testing not performed as per testing agent limitations. Backend APIs are fully functional and ready for frontend integration."
+          agent: "main"
+          comment: "User reports getting an error when trying to select a radar tower/station from the dropdown. Need to test dropdown functionality and station selection process."
+
+  - task: "Interactive Radar Map Display"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/InteractiveRadarMap.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "User reports seeing blinking question marks instead of actual radar images on the map. Need to test radar image loading, overlay display, and animation controls."
+
+  - task: "AI Weather Assistant Chatbot"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test if the AI chatbot can access real-time weather data for any US area. Test with queries like weather in Dallas, storms in Florida, tornado activity in Oklahoma."
+
+  - task: "Modern UI Components Integration"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Test modern UI design, responsive behavior, and interactive elements functionality after UI modernization."
 
 metadata:
   created_by: "testing_agent"
