@@ -371,9 +371,9 @@ const InteractiveRadarMap = ({
     } catch (error) {
       console.error('Error loading radar frames:', error);
       
-      // Emergency fallback - create mock frames that won't cause CORS issues
+      // Emergency fallback with 2-minute intervals - create mock frames that won't cause CORS issues  
       const emergencyFrames = Array.from({ length: 5 }, (_, i) => ({
-        timestamp: Date.now() - (i * 10 * 60 * 1000),
+        timestamp: Date.now() - (i * 2 * 60 * 1000), // 2-minute intervals
         frameIndex: i,
         imageUrl: '', // Empty URL to avoid CORS issues
         bounds: {
