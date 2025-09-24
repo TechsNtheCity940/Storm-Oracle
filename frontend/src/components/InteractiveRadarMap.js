@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { 
   Play, Pause, SkipBack, SkipForward, RotateCcw, MapPin, AlertTriangle, 
-  ChevronLeft, ChevronRight, Settings, Palette, Eye, EyeOff 
+  ChevronLeft, ChevronRight, Settings, Palette, Eye, EyeOff, Wind 
 } from 'lucide-react';
 import axios from 'axios';
 
