@@ -617,6 +617,8 @@ const InteractiveRadarMap = ({
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [realRadarData, setRealRadarData] = useState(null);
+  const [showWindAnimation, setShowWindAnimation] = useState(false);
+  const [windData, setWindData] = useState([]);
 
   const playbackRef = useRef(null);
   const mapRef = useRef(null);
