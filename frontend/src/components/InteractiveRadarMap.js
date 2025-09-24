@@ -345,21 +345,75 @@ const StormCellMarkers = ({ stormCells, onStormClick }) => {
       marker.on('click', () => onStormClick(storm));
     });
 
-    // Add simulated weather markers for demonstration
-    const weatherMarkers = [
-      // Lightning markers
-      { type: 'lightning', lat: 32.7767, lng: -96.7970, intensity: 'high' }, // Dallas
-      { type: 'lightning', lat: 29.7604, lng: -95.3698, intensity: 'medium' }, // Houston
-      { type: 'lightning', lat: 35.4676, lng: -97.5164, intensity: 'low' }, // Oklahoma City
+    // Generate dynamic weather markers based on radar data and storm cells
+    const weatherMarkers = [];
+    
+    // Add lightning markers based on storm activity
+    stormCells.forEach((storm, index) => {
+      if (storm.tornadoProbability > 30) {
+        // Lightning around storm centers
+        for (let i = 0; i < 3; i++) {
+          const offsetLat = (Math.random() - 0.5) * 0.5; // Random offset within 30 miles
+          const offsetLng = (Math.random() - 0.5) * 0.5;
+          weatherMarkers.push({
+            type: 'lightning',
+            lat: storm.latitude + offsetLat,
+            lng: storm.longitude + offsetLng,
+            intensity: storm.tornadoProbability > 70 ? 'high' : storm.tornadoProbability > 50 ? 'medium' : 'low',
+            stormId: storm.stationId,
+            timestamp: Date.now() - Math.random() * 300000 // Last 5 minutes
+          });
+        }
+        
+        // Hail markers for strong storms
+        if (storm.tornadoProbability > 40) {
+          weatherMarkers.push({
+            type: 'hail',
+            lat: storm.latitude + (Math.random() - 0.5) * 0.3,
+            lng: storm.longitude + (Math.random() - 0.5) * 0.3,
+            size: storm.tornadoProbability > 60 ? 'large' : 'small',
+            stormId: storm.stationId,
+            probability: Math.min(95, storm.tornadoProbability + 15)
+          });
+        }
+        
+        // Rotation markers for tornadic storms
+        if (storm.tornadoProbability > 35) {
+          weatherMarkers.push({
+            type: 'rotation',
+            lat: storm.latitude,
+            lng: storm.longitude,
+            strength: storm.tornadoProbability > 65 ? 'strong' : 'moderate',
+            stormId: storm.stationId,
+            velocityCouplet: true,
+            shear: storm.shearIntensity || 'moderate'
+          });
+        }
+      }
+    });
+    
+    // Add additional lightning markers in high-reflectivity areas (simulated based on radar patterns)
+    if (selectedStation && radarFrames.length > 0) {
+      const currentFrame = radarFrames[Math.floor(radarFrames.length * 0.8)]; // Recent frame
       
-      // Hail markers  
-      { type: 'hail', lat: 33.7490, lng: -84.3880, size: 'large' }, // Atlanta
-      { type: 'hail', lat: 41.8781, lng: -87.6298, size: 'small' }, // Chicago
+      // Simulate lightning in areas around the selected station based on storm activity
+      const stormDensity = stormCells.length;
+      const lightningCount = Math.min(8, stormDensity * 2 + 2);
       
-      // Rotation markers (mesocyclone signatures)
-      { type: 'rotation', lat: 36.1627, lng: -95.9928, strength: 'strong' }, // Tulsa area
-      { type: 'rotation', lat: 32.2540, lng: -101.8313, strength: 'moderate' }, // Lubbock area
-    ];
+      for (let i = 0; i < lightningCount; i++) {
+        const angle = (i / lightningCount) * 2 * Math.PI;
+        const distance = 0.5 + Math.random() * 1.5; // 30-120 miles from station
+        
+        weatherMarkers.push({
+          type: 'lightning',
+          lat: selectedStation.latitude + Math.cos(angle) * distance,
+          lng: selectedStation.longitude + Math.sin(angle) * distance,
+          intensity: Math.random() > 0.6 ? 'high' : Math.random() > 0.3 ? 'medium' : 'low',
+          radarBased: true,
+          timestamp: Date.now() - Math.random() * 180000 // Last 3 minutes
+        });
+      }
+    }
 
     weatherMarkers.forEach((weather, index) => {
       let markerHtml, markerColor, markerSize;
