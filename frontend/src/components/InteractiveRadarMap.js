@@ -612,11 +612,11 @@ const InteractiveRadarMap = ({
                 </div>
               </div>
 
-              {/* Frame Slider */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs text-slate-400">
-                  <span>Frame {currentFrame + 1} of {radarFrames.length}</span>
-                  <span>
+              {/* Modern Frame Slider */}
+              <div className="space-y-3">
+                <div className="flex justify-between text-xs text-slate-600 font-medium">
+                  <span className="bg-blue-50 px-2 py-1 rounded-lg">Frame {currentFrame + 1} of {radarFrames.length}</span>
+                  <span className="bg-sky-50 px-2 py-1 rounded-lg">
                     {radarFrames[currentFrame] 
                       ? new Date(radarFrames[currentFrame].timestamp).toLocaleTimeString()
                       : '--:--'
